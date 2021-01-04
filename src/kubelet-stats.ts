@@ -1,11 +1,12 @@
-import { MetricSubmission } from "https://deno.land/x/datadog_api@v0.1.2/v1/metrics.ts";
-
-import { autoDetectClient } from "https://deno.land/x/kubernetes_client@v0.1.0/mod.ts";
-import { CoreV1Api } from "https://deno.land/x/kubernetes_apis@v0.1.0/builtin/core@v1/mod.ts";
+import {
+  autoDetectKubernetesClient,
+  CoreV1Api,
+  MetricSubmission,
+} from './deps.ts';
 
 import * as types from "./kubelet-api.ts";
 
-const coreApi = new CoreV1Api(await autoDetectClient());
+const coreApi = new CoreV1Api(await autoDetectKubernetesClient());
 
 interface StatsSummary {
   node: NodeSummary;
@@ -14,7 +15,7 @@ interface StatsSummary {
 interface NodeSummary {
   cpu:               types.CPU;
   memory:            types.Memory;
-  systemContainers: Map<string, ContainerSummary>;
+  systemContainers:  Map<string, ContainerSummary>;
   network?:          types.Network;
   fs?:               types.FS;
   runtime?:          types.Runtime;
@@ -26,7 +27,7 @@ interface PodSummary {
   cpu:                  types.CPU;
   memory:               types.Memory;
   network?:             types.Network;
-  volume:              Map<string, types.FS>;
+  volume:               Map<string, types.FS>;
   "ephemeral-storage"?: types.FS;
 };
 interface ContainerSummary {
@@ -35,7 +36,7 @@ interface ContainerSummary {
   memory:              types.Memory;
   rootfs?:             types.FS;
   logs?:               types.FS;
-  userDefinedMetrics: Map<string, types.UserDefinedMetric>;
+  userDefinedMetrics:  Map<string, types.UserDefinedMetric>;
 };
 const memories = new Map<string, StatsSummary>();
 

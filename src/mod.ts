@@ -1,23 +1,14 @@
-import DatadogApi, { CheckStatus } from "https://deno.land/x/datadog_api@v0.1.2/mod.ts";
-import { MetricSubmission } from "https://deno.land/x/datadog_api@v0.1.2/v1/metrics.ts";
-const datadog = DatadogApi.fromEnvironment(Deno.env);
-
-import { fixedInterval } from "https://danopia.net/deno/fixed-interval@v1.ts";
-
 import {
-  readableStreamFromAsyncIterator as fromAsyncIterator,
-} from "https://deno.land/std@0.81.0/io/streams.ts";
-
-import { bufferWithCount } from "https://uber.danopia.net/deno/observables-with-streams@v1/transforms/buffer-with-count.ts";
-
-import {
-  // RestClient as KubernetesClient,
-  // autoDetectClient as autoDetectKubernetesClient,
+  DatadogApi, MetricSubmission,
   ReadLineTransformer,
-} from "https://deno.land/x/kubernetes_client@v0.1.0/mod.ts";
-// import { CoreV1Api } from "https://deno.land/x/kubernetes_apis@v0.1.0/builtin/core@v1/mod.ts";
+  fixedInterval,
+  CheckStatus,
+  ows,
+} from './deps.ts';
 
 import { buildSystemMetrics } from './kubelet-stats.ts';
+
+const datadog = DatadogApi.fromEnvironment(Deno.env);
 
 interface RawMetric {
   name: string;
@@ -167,8 +158,8 @@ async function* buildDogMetrics(dutyCycle: number): AsyncGenerator<MetricSubmiss
 
 for await (const dutyCycle of fixedInterval(30 * 1000)) {
   console.log('---', new Date().toISOString(), dutyCycle);
-  const metricStream = fromAsyncIterator(buildDogMetrics(dutyCycle));
-  for await (const batch of metricStream.pipeThrough(bufferWithCount(500))) {
+  const metricStream = ows.fromAsyncIterator(buildDogMetrics(dutyCycle));
+  for await (const batch of metricStream.pipeThrough(ows.bufferWithCount(500))) {
     console.log(batch.length, await datadog.v1Metrics.submit(batch));
   }
 }
