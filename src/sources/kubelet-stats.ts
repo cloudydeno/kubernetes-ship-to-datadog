@@ -2,9 +2,9 @@ import {
   autoDetectKubernetesClient,
   CoreV1Api,
   MetricSubmission,
-} from './deps.ts';
+} from '../deps.ts';
 
-import * as types from "./kubelet-api.ts";
+import * as types from "../lib/kubelet-api.ts";
 
 const coreApi = new CoreV1Api(await autoDetectKubernetesClient());
 
