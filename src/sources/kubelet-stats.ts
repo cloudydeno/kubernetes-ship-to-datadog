@@ -1,12 +1,12 @@
 import {
   autoDetectKubernetesClient,
-  CoreV1Api,
+  CoreV1,
   MetricSubmission,
 } from '../deps.ts';
 
 import * as types from "../lib/kubelet-api.ts";
 
-const coreApi = new CoreV1Api(await autoDetectKubernetesClient());
+const coreApi = new CoreV1.CoreV1Api(await autoDetectKubernetesClient());
 
 interface StatsSummary {
   node: NodeSummary;
@@ -44,52 +44,75 @@ export async function* buildSystemMetrics(baseTags: string[]): AsyncGenerator<Me
   const {items: nodes} = await coreApi.getNodeList();
 
   for (const node of nodes) {
-    if (!node.metadata?.name || !node.status?.addresses) continue;
+    if (!node.metadata?.name) continue;
 
-    const internalAddr = node.status.addresses
-      .filter(x => x.type === 'InternalIP')
-      .map(x => x.address)[0];
-    if (!internalAddr) continue;
-    if (internalAddr.includes('<')) continue; // <nil> from kube-pet-node
+    try {
+      yield* buildSystemMetricsFromNode(baseTags, node);
 
-    const summary = await fetch(`http://${internalAddr}:10255/stats/summary`)
-      .then(x => x.json() as Promise<types.StatsSummary>);
+    } catch (err: unknown) {
+      const type = (err instanceof Error) ? err.name : typeof err;
+      yield {
+        metric_name: `app.loop.error`,
+        points: [{value: 1}],
+        interval: 60,
+        metric_type: 'count',
+        tags: [...baseTags,
+          `source:kubelet`,
+          `source_name:${node.metadata.name}`,
+          `error:${type}`,
+        ],
+      };
 
-    const thisObs: StatsSummary = {
-      node: {
-        ...summary.node,
-        systemContainers: new Map(summary.node.systemContainers?.map(x => [x.name, {
-          ...x,
-          userDefinedMetrics: new Map(x.userDefinedMetrics?.map(y => [y.name, y])),
-        }])),
-      },
-      pods: new Map(summary.pods.map(x => [x.podRef.uid, {
-        ...x,
-        volume: new Map(x.volume?.map(x => [x.name, x])),
-        containers: new Map(x.containers?.map(x => [x.name, {
-          ...x,
-          userDefinedMetrics: new Map(x.userDefinedMetrics?.map(y => [y.name, y])),
-        }])),
-      }])),
-    };
-
-    const prevObs = memories.get(node.metadata.name);
-
-    const tags = [...baseTags, `host:${node.metadata.name}`];
-
-    yield* buildNodeMetrics(thisObs.node, prevObs?.node, tags);
-
-    for (const [uid, podNow] of thisObs.pods) {
-      const podPrev = prevObs?.pods?.get(uid);
-      yield* buildPodMetrics(podNow, podPrev, [...tags,
-        `kube_namespace:${podNow.podRef.namespace}`,
-        `kube_pod:${podNow.podRef.name}`,
-      ]);
     }
-
-    memories.set(node.metadata.name, thisObs);
   }
 
+}
+
+export async function* buildSystemMetricsFromNode(baseTags: string[], node: CoreV1.Node): AsyncGenerator<MetricSubmission,any,undefined> {
+  if (!node.metadata?.name || !node.status?.addresses) return;
+
+  const internalAddr = node.status.addresses
+    .filter(x => x.type === 'InternalIP')
+    .map(x => x.address)[0];
+  if (!internalAddr) return;
+  if (internalAddr.includes('<')) return; // <nil> from kube-pet-node
+
+  const summary = await fetch(`http://${internalAddr}:10255/stats/summary`)
+    .then(x => x.json() as Promise<types.StatsSummary>);
+
+  const thisObs: StatsSummary = {
+    node: {
+      ...summary.node,
+      systemContainers: new Map(summary.node.systemContainers?.map(x => [x.name, {
+        ...x,
+        userDefinedMetrics: new Map(x.userDefinedMetrics?.map(y => [y.name, y])),
+      }])),
+    },
+    pods: new Map(summary.pods.map(x => [x.podRef.uid, {
+      ...x,
+      volume: new Map(x.volume?.map(x => [x.name, x])),
+      containers: new Map(x.containers?.map(x => [x.name, {
+        ...x,
+        userDefinedMetrics: new Map(x.userDefinedMetrics?.map(y => [y.name, y])),
+      }])),
+    }])),
+  };
+
+  const prevObs = memories.get(node.metadata.name);
+
+  const tags = [...baseTags, `host:${node.metadata.name}`];
+
+  yield* buildNodeMetrics(thisObs.node, prevObs?.node, tags);
+
+  for (const [uid, podNow] of thisObs.pods) {
+    const podPrev = prevObs?.pods?.get(uid);
+    yield* buildPodMetrics(podNow, podPrev, [...tags,
+      `kube_namespace:${podNow.podRef.namespace}`,
+      `kube_pod:${podNow.podRef.name}`,
+    ]);
+  }
+
+  memories.set(node.metadata.name, thisObs);
 }
 
 async function* buildNodeMetrics(now: NodeSummary, before: NodeSummary | undefined, tags: string[]): AsyncGenerator<MetricSubmission,any,undefined> {

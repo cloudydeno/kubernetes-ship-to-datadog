@@ -24,8 +24,24 @@ async function* buildDogMetrics(dutyCycle: number): AsyncGenerator<MetricSubmiss
     tags: [...commonTags, 'app:kubernetes-ship-to-dd'],
   };
 
-  yield* buildOpenMetrics(commonTags);
+  // TODO: this doesn't belong here, openmetrics needs some internal rework
+  try {
+    yield* buildOpenMetrics(commonTags);
+  } catch (err: unknown) {
+    const type = (err instanceof Error) ? err.name : typeof err;
+    yield {
+      metric_name: `app.loop.error`,
+      points: [{value: 1}],
+      interval: 60,
+      metric_type: 'count',
+      tags: [...commonTags,
+        `source:openmetrics`,
+        `error:${type}`,
+      ],
+    };
+  }
 
+  // By-Node stats summaries scraped directly from kubelet
   yield* buildSystemMetrics(commonTags);
 
 }

@@ -10,7 +10,7 @@ export {
   ReadLineTransformer,
 } from "https://deno.land/x/kubernetes_client@v0.1.3/mod.ts";
 
-export { CoreV1Api } from "https://deno.land/x/kubernetes_apis@v0.2.0/builtin/core@v1/mod.ts";
+export * as CoreV1 from "https://deno.land/x/kubernetes_apis@v0.2.0/builtin/core@v1/mod.ts";
 
 //------------
 
