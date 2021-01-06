@@ -6,6 +6,7 @@ import {
 
 import { buildSystemMetrics } from './sources/kubelet-stats.ts';
 import { buildOpenMetrics } from './sources/openmetrics.ts';
+import { buildBlockDeviceMetrics } from './sources/pet-blockdevices.ts';
 
 const datadog = DatadogApi.fromEnvironment(Deno.env);
 
@@ -43,6 +44,9 @@ async function* buildDogMetrics(dutyCycle: number): AsyncGenerator<MetricSubmiss
 
   // By-Node stats summaries scraped directly from kubelet
   yield* buildSystemMetrics(commonTags);
+
+  // A custom CRD for S.M.A.R.T. reports
+  yield* buildBlockDeviceMetrics(commonTags);
 
 }
 
