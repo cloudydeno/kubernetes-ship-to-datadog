@@ -21,6 +21,7 @@ export async function* buildBlockDeviceMetrics(baseTags: string[]): AsyncGenerat
     }
 
   } catch (err: unknown) {
+    console.log((err instanceof Error) ? err.stack : err);
     const type = (err instanceof Error) ? err.name : typeof err;
     yield {
       metric_name: `app.loop.error`,
