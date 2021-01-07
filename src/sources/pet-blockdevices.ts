@@ -47,6 +47,7 @@ async function* reportBlockDev(baseTags: string[], node: BlockDevice): AsyncGene
 
   const tags = [...baseTags,
     `serial:${node.spec.serialNumber}`,
+    `host:${node.spec.nodeName}`, // can technically change per drive
     `drive_media:${blkType ?? 'unknown'}`,
   ];
 
