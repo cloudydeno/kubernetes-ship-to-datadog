@@ -1,6 +1,7 @@
 import {
   DatadogApi, MetricSubmission,
   fixedInterval,
+  runMetricsServer, replaceGlobalFetch,
   ows,
 } from './deps.ts';
 import {
@@ -13,6 +14,12 @@ import { buildSystemMetrics } from './sources/kubelet-stats.ts';
 import { buildKubeStateMetrics } from './sources/kube-state.ts';
 import { buildOpenMetrics } from './sources/openmetrics.ts';
 import { buildBlockDeviceMetrics } from './sources/pet-blockdevices.ts';
+
+if (Deno.args.includes('--serve-metrics')) {
+  replaceGlobalFetch();
+  runMetricsServer({ port: 9090 });
+  console.log("Now serving OpenMetrics @ :9090/metrics");
+}
 
 const datadog = DatadogApi.fromEnvironment(Deno.env);
 
