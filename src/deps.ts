@@ -19,6 +19,7 @@ export * as MetaV1 from "https://deno.land/x/kubernetes_apis@v0.2.0/builtin/meta
 //------------
 
 import { bufferWithCount } from "https://cloudydeno.github.io/observables-with-streams/src/transforms/buffer-with-count.ts";
+import { filter } from "https://cloudydeno.github.io/observables-with-streams/src/transforms/filter.ts";
 
 import {
   readableStreamFromAsyncIterator as fromAsyncIterator,
@@ -26,5 +27,6 @@ import {
 
 export const ows = {
   bufferWithCount,
+  filter,
   fromAsyncIterator,
 };

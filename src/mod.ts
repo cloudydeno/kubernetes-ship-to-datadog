@@ -26,35 +26,34 @@ async function* buildDogMetrics(dutyCycle: number): AsyncGenerator<MetricSubmiss
     tags: [...commonTags, 'app:kubernetes-ship-to-dd'],
   };
 
-  // TODO: this doesn't belong here, openmetrics needs some internal rework
-  try {
-    yield* buildOpenMetrics(commonTags);
-  } catch (err: unknown) {
-    const type = (err instanceof Error) ? err.name : typeof err;
-    yield {
-      metric_name: `app.loop.error`,
-      points: [{value: 1}],
-      interval: 60,
-      metric_type: 'count',
-      tags: [...commonTags,
-        `source:openmetrics`,
-        `error:${type}`,
-      ],
-    };
-  }
+  // Scrape all autodiscovered OpenMetrics (or Prometheus) pods
+  yield* buildOpenMetrics(commonTags);
+
+  // Basic scheduling & health from the cluster's control plane
+  yield* buildKubeStateMetrics(commonTags);
 
   // By-Node stats summaries scraped directly from kubelet
-  yield* buildSystemMetrics(commonTags);
+  // yield* buildSystemMetrics(commonTags);
 
   // A custom CRD for S.M.A.R.T. reports
-  yield* buildBlockDeviceMetrics(commonTags);
+  // yield* buildBlockDeviceMetrics(commonTags);
 
 }
+
+const pipeOpts: PipeOptions = {
+  preventAbort: false,
+  preventCancel: false,
+  preventClose: false,
+};
 
 for await (const dutyCycle of fixedInterval(30 * 1000)) {
   console.log('---', new Date().toISOString(), dutyCycle);
   const metricStream = ows.fromAsyncIterator(buildDogMetrics(dutyCycle));
-  for await (const batch of metricStream.pipeThrough(ows.bufferWithCount(500))) {
+  for await (const batch of metricStream
+      .pipeThrough(ows.filter(x => x.metric_type !== 'count' || x.points[0].value !== 0), pipeOpts)
+      .pipeThrough(ows.bufferWithCount(500), pipeOpts)
+  ) {
+    // console.log(batch.filter(x => x.metric_name.includes('fetch.request_d')))
     console.log(batch.length, await datadog.v1Metrics.submit(batch));
   }
 }
