@@ -1,142 +1,211 @@
 import {
-  DatadogApi, MetricSubmission,
+  autoDetectKubernetesClient,
+  CoreV1,
+  MetricSubmission,
   ReadLineTransformer,
-  CheckStatus,
 } from '../deps.ts';
-
-const datadog = DatadogApi.fromEnvironment(Deno.env);
 
 interface RawMetric {
   name: string;
-  help: string;
+  help?: string;
+  unit?: string;
   type: string;
-  datas: Array<[Record<string,string>, number]>;
-}
+  datas: Array<MetricPoint>;
+};
+interface MetricPoint {
+  submetric: string;
+  labelset: string;
+  tags: [string, string][];
+  facets: Record<string,string>;
+  value: number;
+  rawValue: string;
+};
 
-// const kubernetes = await autoDetectKubernetesClient();
-// const coreApi = new CoreV1Api(kubernetes);
-// const resp = await coreApi.namespace('kube-system').connectGetServiceProxy('kube-state-metrics:http-metrics', {path: '/metrics'});
+const kubernetes = await autoDetectKubernetesClient();
+const coreApi = new CoreV1.CoreV1Api(kubernetes);
 
-async function* grabMetrics(url: string): AsyncGenerator<RawMetric> {
-  const resp = await fetch(url);
-  const lines = resp.body!.pipeThrough(new ReadLineTransformer());
+const monotonicMemory = new Map<string,number>();
+
+async function* parseMetrics(stream: ReadableStream<Uint8Array>): AsyncGenerator<RawMetric> {
+  const lines = stream.pipeThrough(new ReadLineTransformer());
   let currName: string | undefined;
   let currHelp: string | undefined;
   let currType: string | undefined;
-  let datas: Array<[Record<string,string>, number]> | undefined;
+  let currUnit: string | undefined;
+  let datas: Array<MetricPoint> | undefined;
   for await (const line of lines) {
     if (!line.startsWith('#')) {
       // console.log(3, currName, currHelp, currType, line);
-      const match = line.match(/{([^}]+)} ([^ ]+)$/) || line.match(/() ([^ ]+)$/);
+      const match = line.match(/^([^ {]+)(?:{([^}]+)}|) ([^ ]+)$/);
       if (!match) throw new Error(`TODO: ${line}`);
       const tags: Record<string,string> = Object.create(null);
-      for (const kv of match[1] ? match[1].split(',') : '') {
+      for (const kv of match[2]?.split(',') ?? []) {
         const [k,v] = kv.split('=');
         tags[k] = JSON.parse(v);
       }
-      datas!.push([tags, parseFloat(match[2])]);
-    } else if (line.startsWith('# HELP ')) {
+      datas!.push({
+        submetric: match[1].slice(currName!.length + 1),
+        labelset: match[2],
+        tags: match[2]?.split(',').map(str => {
+          const [k, v] = str.split('=');
+          return [k, JSON.parse(v)];
+        }) ?? [],
+        facets: tags,
+        value: parseFloat(match[3]),
+        rawValue: match[3],
+      });
+    } else if (line.startsWith('# TYPE ')) {
       if (datas) {
-        yield {name: currName!, help: currHelp!, type: currType!, datas};
+        yield {name: currName!, help: currHelp, unit: currUnit, type: currType!, datas};
       }
+      currName = line.split(' ')[2];
+      currHelp = undefined;
+      currUnit = undefined;
+      currType = line.slice(8+currName.length);
       datas = [];
+    } else if (line.startsWith('# HELP ')) {
       currName = line.split(' ')[2];
       currHelp = line.slice(8+currName.length);
-    } else if (line.startsWith('# TYPE ')) {
+    } else if (line.startsWith('# UNIT ')) {
       currName = line.split(' ')[2];
-      currType = line.slice(8+currName.length);
+      currUnit = line.slice(8+currName.length);
+    } else if (line === '# EOF') {
+      // break;
     } else throw new Error("TODO: "+line);
   }
   if (datas) {
-    yield {name: currName!, help: currHelp!, type: currType!, datas};
+    yield {name: currName!, help: currHelp, unit: currUnit, type: currType!, datas};
   }
 }
 
-function reportAs(
-  rawMetric: RawMetric,
+function reportPointAs(
+  point: MetricPoint,
   metric_name: string,
   metric_type: 'gauge' | 'rate' | 'count',
   extraTags: string[],
   tagKeyMap: Record<string,string>,
+  monotonicKey: string | false,
 ): MetricSubmission[] {
-  return rawMetric.datas.map(([tags, val]) => ({
-      metric_name,
-      points: [{value: val}],
-      interval: 30,
-      metric_type,
-      tags: [
-        'cluster:dust-gke',
-        ...extraTags,
-        ...Object.entries(tags).map(([k,v]) => (tagKeyMap[k]||`kube_${k}`)+`:${v}`),
-      ]}));
+
+  let value = point.value;
+  if (monotonicKey) {
+    const lastSeen = monotonicMemory.get(monotonicKey);
+    monotonicMemory.set(monotonicKey, value);
+    // console.log(monotonicKey, value, lastSeen);
+    if (typeof lastSeen === 'number') {
+      value -= lastSeen;
+      if (value < 0) return [];
+    } else {
+      return [];
+    }
+  }
+
+  return [{
+    metric_name,
+    points: [{value: value}],
+    interval: 30,
+    metric_type,
+    tags: [
+      ...extraTags,
+      ...point.tags.map(([k,v]) => (tagKeyMap[k]||`om_${k}`)+`:${v}`),
+    ]}];
 }
 
 export async function* buildOpenMetrics(baseTags: string[]): AsyncGenerator<MetricSubmission,any,undefined> {
 
-  for await (const rawMetric of grabMetrics('http://kube-state-metrics.monitoring.svc.cluster.local:8080/metrics')) {
+  const podList = await coreApi.getPodListForAllNamespaces({
+    labelSelector: 'cloudydeno.github.io/metrics=true',
+    resourceVersion: '0', // old data is ok
+  });
 
-    if (rawMetric.name === 'kube_daemonset_status_desired_number_scheduled') {
-      yield* reportAs(rawMetric, 'kube_state.controller.desired_replicas', 'gauge', [...baseTags, 'kube_kind:daemonset'], {'daemonset': 'kube_name'});
-    }
-    if (rawMetric.name === 'kube_daemonset_status_number_available') {
-      yield* reportAs(rawMetric, 'kube_state.controller.available_replicas', 'gauge', [...baseTags, 'kube_kind:daemonset'], {'daemonset': 'kube_name'});
-    }
-    if (rawMetric.name === 'kube_daemonset_status_number_unavailable') {
-      yield* reportAs(rawMetric, 'kube_state.controller.unavailable_replicas', 'gauge', [...baseTags, 'kube_kind:daemonset'], {'daemonset': 'kube_name'});
-    }
+  for (const pod of podList.items) {
+    const podTags = [
+      ...baseTags,
+      `kube_namespace:${pod.metadata!.namespace}`,
+      `kube_pod:${pod.metadata!.name}`,
+    ];
 
-    if (rawMetric.name === 'kube_deployment_spec_replicas') {
-      yield* reportAs(rawMetric, 'kube_state.controller.desired_replicas', 'gauge', [...baseTags, 'kube_kind:deployment'], {'deployment': 'kube_name'});
-    }
-    if (rawMetric.name === 'kube_deployment_status_replicas_available') {
-      yield* reportAs(rawMetric, 'kube_state.controller.available_replicas', 'gauge', [...baseTags, 'kube_kind:deployment'], {'deployment': 'kube_name'});
-    }
-    if (rawMetric.name === 'kube_deployment_status_replicas_unavailable') {
-      yield* reportAs(rawMetric, 'kube_state.controller.unavailable_replicas', 'gauge', [...baseTags, 'kube_kind:deployment'], {'deployment': 'kube_name'});
+    for (const x of pod.metadata!.ownerReferences ?? []) {
+      if (!x.controller) continue;
+      podTags.push(`kube_${x.kind}:${x.name}`);
     }
 
-    if (rawMetric.name === 'kube_node_status_condition') {
-      // TODO: proper true/false handling
-      yield* reportAs(rawMetric, 'kube_state.node.condition', 'gauge', [...baseTags], {});
-      for (const [tags, val] of rawMetric.datas) {
-        if (tags['condition'] === 'Ready' && val > 0) {
-          await datadog.v1ServiceChecks.submit({
-            check_name: 'kube_state.node.ready',
-            host_name: tags['node'],
-            status: tags['status'] === 'true' ? CheckStatus.Ok : tags['status'] === 'false' ? CheckStatus.Critical : CheckStatus.Unknown,
-            tags: baseTags,
-          });
+    try {
+      const stream = await coreApi
+        .namespace(pod.metadata!.namespace!)
+        .proxyPodRequest(pod.metadata!.name!, {
+          port: pod.metadata!.annotations!['cloudydeno.github.io/metric-port'],
+          method: 'GET',
+          path: '/metrics',
+          expectStream: true,
+        });
+
+      for await (const rawMetric of parseMetrics(stream)) {
+
+        let metric_name = 'om.'+rawMetric.name;
+        const firstDot = metric_name.indexOf('_');
+        metric_name = metric_name.slice(0, firstDot) + '.' + metric_name.slice(firstDot+1);
+        if (rawMetric.unit) {
+          if (rawMetric.name.endsWith('_'+rawMetric.unit)) {
+            metric_name = metric_name.slice(0, -rawMetric.unit.length-1) + '.' + rawMetric.unit;
+          }
+        }
+
+        const memPrefix = `${pod.metadata!.uid!}!${rawMetric.name}`;
+        switch (rawMetric.type) {
+
+          case 'counter':
+            for (const point of rawMetric.datas) {
+              if (point.submetric && point.submetric !== 'total') continue;
+              yield* reportPointAs(point, metric_name, 'count', podTags, {}, `${memPrefix}!${point.submetric}!${point.labelset}`);
+            }
+            break;
+
+          case 'gauge':
+            for (const point of rawMetric.datas) {
+              if (point.submetric) continue;
+              yield* reportPointAs(point, metric_name, 'gauge', podTags, {}, false);
+            }
+            break;
+
+          case 'summary':
+            for (const point of rawMetric.datas) {
+              if (point.submetric !== 'sum' && point.submetric !== 'count') continue;
+              yield* reportPointAs(point, metric_name+'.'+point.submetric, 'count', podTags, {}, `${memPrefix}!${point.submetric}!${point.labelset}`);
+            }
+            break;
+
+          case 'histogram':
+            for (const point of rawMetric.datas) {
+              yield* reportPointAs(point, metric_name+'.'+point.submetric, 'count', podTags, {}, `${memPrefix}!${point.submetric}!${point.labelset}`);
+            }
+            break;
+
+          default:
+            console.log(rawMetric);
+
         }
       }
-    }
-    if (rawMetric.name === 'kube_node_spec_unschedulable') {
-      yield* reportAs(rawMetric, 'kube_state.node.unschedulable', 'gauge', baseTags, {});
-    }
 
-    if (rawMetric.name === 'kube_pod_status_ready') {
-      yield* reportAs(rawMetric, 'kube_state.pod.ready', 'gauge', baseTags, {});
+      // Deno.exit(1);
+      // yield* grabKubeStateMetrics(baseTags);
+    } catch (err: unknown) {
+      console.log(`Failed to scrape ${pod.metadata!.namespace}/${pod.metadata!.name}: ${(err as Error).stack}`)
+      const type = (err instanceof Error) ? err.name : typeof err;
+      yield {
+        metric_name: `app.loop.error`,
+        points: [{value: 1}],
+        interval: 60,
+        metric_type: 'count',
+        tags: [...baseTags,
+          `source:openmetrics`,
+          `source_name:${pod.metadata!.namespace}/${pod.metadata!.name}`,
+          `error:${type}`,
+        ],
+      };
     }
-
-    // TODO: kube_pod_container_resource_requests
-    // TODO: kube_pod_container_resource_limits
-    // TODO: kube_node_status_capacity
-    // TODO: kube_node_status_allocatable
-
-    if (rawMetric.name === 'kube_pod_container_status_restarts_total') {
-      yield* reportAs(rawMetric, 'kube_state.container.restarts.total', 'gauge', baseTags, {});
-    }
-    if (rawMetric.name === 'kube_pod_init_container_status_restarts_total') {
-      yield* reportAs(rawMetric, 'kube_state.init_container.restarts.total', 'gauge', baseTags, {});
-    }
-
-    if (rawMetric.name === 'kube_statefulset_replicas') {
-      yield* reportAs(rawMetric, 'kube_state.controller.desired_replicas', 'gauge', [...baseTags, 'kube_kind:statefulset'], {'statefulset': 'kube_name'});
-    }
-    if (rawMetric.name === 'kube_statefulset_status_replicas_ready') {
-      yield* reportAs(rawMetric, 'kube_state.controller.available_replicas', 'gauge', [...baseTags, 'kube_kind:statefulset'], {'statefulset': 'kube_name'});
-    }
-    // there is no unavailable...
-
   }
+
+  // console.log('Memory:', monotonicMemory.size, monotonicMemory)
 
 }
