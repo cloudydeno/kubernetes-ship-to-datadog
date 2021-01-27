@@ -4,6 +4,11 @@ import {
   MetricSubmission,
   ReadLineTransformer,
 } from '../deps.ts';
+import {
+  AsyncMetricGen,
+  makeLoopErrorPoint,
+  MonotonicMemory,
+} from '../lib/metrics.ts';
 
 interface RawMetric {
   name: string;
@@ -111,7 +116,7 @@ function reportPointAs(
     ]}];
 }
 
-export async function* buildOpenMetrics(baseTags: string[]): AsyncGenerator<MetricSubmission,any,undefined> {
+export async function* buildOpenMetrics(baseTags: string[]): AsyncMetricGen {
 
   const podList = await coreApi.getPodListForAllNamespaces({
     labelSelector: 'cloudydeno.github.io/metrics=true',
@@ -190,19 +195,11 @@ export async function* buildOpenMetrics(baseTags: string[]): AsyncGenerator<Metr
       // Deno.exit(1);
       // yield* grabKubeStateMetrics(baseTags);
     } catch (err: unknown) {
-      console.log(`Failed to scrape ${pod.metadata!.namespace}/${pod.metadata!.name}: ${(err as Error).stack}`)
-      const type = (err instanceof Error) ? err.name : typeof err;
-      yield {
-        metric_name: `app.loop.error`,
-        points: [{value: 1}],
-        interval: 60,
-        metric_type: 'count',
-        tags: [...baseTags,
-          `source:openmetrics`,
-          `source_name:${pod.metadata!.namespace}/${pod.metadata!.name}`,
-          `error:${type}`,
-        ],
-      };
+      console.log(`Failed to scrape ${pod.metadata!.namespace}/${pod.metadata!.name}: ${(err as Error).stack}`);
+      yield makeLoopErrorPoint(err, [...baseTags,
+        `source:openmetrics`,
+        `source_name:${pod.metadata!.namespace}/${pod.metadata!.name}`,
+      ]);
     }
   }
 

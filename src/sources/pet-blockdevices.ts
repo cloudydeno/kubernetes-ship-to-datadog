@@ -1,7 +1,11 @@
 import {
   autoDetectKubernetesClient,
-  MetricSubmission,
 } from '../deps.ts';
+import {
+  AsyncMetricGen,
+  makeLoopErrorPoint,
+  MonotonicMemory,
+} from '../lib/metrics.ts';
 import {
   PetWg69NetV1Api,
   BlockDevice,
@@ -12,7 +16,7 @@ const petApi = new PetWg69NetV1Api(await autoDetectKubernetesClient());
 type SmartReport = (BlockDevice["status"] & {})["smartReport"] & {};
 const reportMemory = new Map<string, SmartReport>();
 
-export async function* buildBlockDeviceMetrics(baseTags: string[]): AsyncGenerator<MetricSubmission,any,undefined> {
+export async function* buildBlockDeviceMetrics(baseTags: string[]): AsyncMetricGen {
   try {
 
     const {items: blks} = await petApi.getBlockDeviceList();
@@ -21,22 +25,13 @@ export async function* buildBlockDeviceMetrics(baseTags: string[]): AsyncGenerat
     }
 
   } catch (err: unknown) {
-    console.log((err instanceof Error) ? err.stack : err);
-    const type = (err instanceof Error) ? err.name : typeof err;
-    yield {
-      metric_name: `app.loop.error`,
-      points: [{value: 1}],
-      interval: 60,
-      metric_type: 'count',
-      tags: [...baseTags,
-        `source:pet-blockdevices`,
-        `error:${type}`,
-      ],
-    };
+    yield makeLoopErrorPoint(err, [...baseTags,
+      `source:pet-blockdevices`,
+    ]);
   }
 }
 
-async function* reportBlockDev(baseTags: string[], node: BlockDevice): AsyncGenerator<MetricSubmission,any,undefined> {
+async function* reportBlockDev(baseTags: string[], node: BlockDevice): AsyncMetricGen {
   const report = node.status?.smartReport;
   if (!node.metadata?.uid || !node.spec.serialNumber || !report) return;
   const blkType = (node.metadata.labels ?? {})['pet.wg69.net/blk-type'];

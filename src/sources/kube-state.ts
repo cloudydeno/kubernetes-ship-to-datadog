@@ -3,49 +3,32 @@ import {
   CoreV1,
   AppsV1,
   MetaV1,
-  DatadogApi, MetricSubmission,
-  ReadLineTransformer,
+  DatadogApi,
   CheckStatus,
 } from '../deps.ts';
+import {
+  AsyncMetricGen,
+  SyncMetricGen,
+  makeLoopErrorPoint,
+  MonotonicMemory,
+} from '../lib/metrics.ts';
 
 const datadog = DatadogApi.fromEnvironment(Deno.env);
-
-interface RawMetric {
-  name: string;
-  help?: string;
-  unit?: string;
-  type: string;
-  datas: Array<MetricPoint>;
-};
-interface MetricPoint {
-  submetric: string;
-  labelset: string;
-  tags: [string, string][];
-  facets: Record<string,string>;
-  value: number;
-  rawValue: string;
-};
 
 const kubernetes = await autoDetectKubernetesClient();
 const coreApi = new CoreV1.CoreV1Api(kubernetes);
 const appsApi = new AppsV1.AppsV1Api(kubernetes);
 
-export async function* buildKubeStateMetrics(baseTags: string[]): AsyncGenerator<MetricSubmission,any,undefined> {
+// upstream's sources per kind:
+// https://github.com/kubernetes/kube-state-metrics/tree/master/internal/store
 
+export async function* buildKubeStateMetrics(baseTags: string[]): AsyncMetricGen {
   try {
     yield* grabKubeStateMetrics(baseTags);
   } catch (err: unknown) {
-    const type = (err instanceof Error) ? err.name : typeof err;
-    yield {
-      metric_name: `app.loop.error`,
-      points: [{value: 1}],
-      interval: 60,
-      metric_type: 'count',
-      tags: [...baseTags,
-        `source:openmetrics`,
-        `error:${type}`,
-      ],
-    };
+    yield makeLoopErrorPoint(err, [ ...baseTags,
+      `source:openmetrics`,
+    ]);
   }
 }
 
@@ -59,7 +42,7 @@ function* makeControllerMetrics(opts: {
   desiredReplicas: number;
   availableReplicas: number;
   unavailableReplicas?: number;
-}): Generator<MetricSubmission,any,undefined> {
+}): SyncMetricGen {
 
   const tags = [ ...opts.baseTags,
     `kube_kind:${opts.kind}`,
@@ -83,7 +66,9 @@ function* makeControllerMetrics(opts: {
   }
 }
 
-export async function* grabKubeStateMetrics(baseTags: string[]): AsyncGenerator<MetricSubmission,any,undefined> {
+const containerMemories = new Map<string,MonotonicMemory>();
+
+export async function* grabKubeStateMetrics(baseTags: string[]): AsyncMetricGen {
 
   const daemonsetList = await appsApi.getDaemonSetListForAllNamespaces({
     resourceVersion: '0', // old data is ok... ish
@@ -206,55 +191,33 @@ export async function* grabKubeStateMetrics(baseTags: string[]): AsyncGenerator<
     }
 
     const memoryKey = JSON.stringify(tags);
-    let memory = containerMemory.get(memoryKey);
+    let memory = containerMemories.get(memoryKey);
     if (!memory) {
-      memory = new Map<string,number>();
-      containerMemory.set(memoryKey, memory);
+      memory = new MonotonicMemory();
+      containerMemories.set(memoryKey, memory);
     }
 
     for (const container of pod.status?.containerStatuses ?? []) {
-      yield* reportMonotonic('kube_state.container.restarts.total', container.restartCount, [...tags, `container_type:regular`, `kube_container:${container.name}`], memory, `${memoryKey}:restarts:${container.name}`);
+      yield* memory.reportCount(container.restartCount, `${memoryKey}:restarts:${container.name}`, {
+        metric_name: 'kube_state.container.restarts.total',
+        tags: [...tags, `container_type:regular`, `kube_container:${container.name}`],
+      });
     }
     for (const container of pod.status?.initContainerStatuses ?? []) {
-      yield* reportMonotonic('kube_state.container.restarts.total', container.restartCount, [...tags, `container_type:init`, `kube_container:${container.name}`], memory, `${memoryKey}:restarts:${container.name}`);
+      yield* memory.reportCount(container.restartCount, `${memoryKey}:restarts:${container.name}`, {
+        metric_name: 'kube_state.container.restarts.total',
+        tags: [...tags, `container_type:init`, `kube_container:${container.name}`],
+      });
     }
     for (const container of pod.status?.ephemeralContainerStatuses ?? []) {
-      yield* reportMonotonic('kube_state.container.restarts.total', container.restartCount, [...tags, `container_type:ephemeral`, `kube_container:${container.name}`], memory, `${memoryKey}:restarts:${container.name}`);
+      yield* memory.reportCount(container.restartCount, `${memoryKey}:restarts:${container.name}`, {
+        metric_name: 'kube_state.container.restarts.total',
+        tags: [...tags, `container_type:ephemeral`, `kube_container:${container.name}`],
+      });
     }
 
     // TODO: kube_pod_container_resource_requests
     // TODO: kube_pod_container_resource_limits
   }
 
-}
-
-const containerMemory = new Map<string,Map<string,number>>();
-
-function reportMonotonic(
-  metric_name: string,
-  raw_value: number,
-  tags: string[],
-  monotonicMemory: Map<string,number>,
-  monotonicKey: string | false,
-): MetricSubmission[] {
-
-  if (monotonicKey) {
-    const lastSeen = monotonicMemory.get(monotonicKey);
-    monotonicMemory.set(monotonicKey, raw_value);
-    // console.log(monotonicKey, raw_value, lastSeen);
-    if (typeof lastSeen === 'number') {
-      raw_value -= lastSeen;
-      if (raw_value < 0) return [];
-    } else {
-      return [];
-    }
-  }
-
-  return [{
-    metric_name,
-    points: [{value: raw_value}],
-    interval: 30,
-    metric_type: 'count',
-    tags,
-  }];
 }
