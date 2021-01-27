@@ -4,10 +4,14 @@ export type { MetricSubmission } from "https://deno.land/x/datadog_api@v0.1.2/v1
 
 export { fixedInterval } from "https://danopia.net/deno/fixed-interval@v1.ts";
 
+export type {
+  RestClient as KubernetesClient,
+} from "https://deno.land/x/kubernetes_client@v0.1.3/mod.ts";
 export {
   // RestClient as KubernetesClient,
   autoDetectClient as autoDetectKubernetesClient,
   ReadLineTransformer,
+  Reflector,
 } from "https://deno.land/x/kubernetes_client@v0.1.3/mod.ts";
 
 // TODO using patch to fix proxy functions
