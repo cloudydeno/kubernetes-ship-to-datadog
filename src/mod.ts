@@ -5,6 +5,7 @@ import {
 } from './deps.ts';
 
 import { buildSystemMetrics } from './sources/kubelet-stats.ts';
+import { buildKubeStateMetrics } from './sources/kube-state.ts';
 import { buildOpenMetrics } from './sources/openmetrics.ts';
 import { buildBlockDeviceMetrics } from './sources/pet-blockdevices.ts';
 

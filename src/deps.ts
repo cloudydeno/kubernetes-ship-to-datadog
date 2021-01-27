@@ -10,7 +10,11 @@ export {
   ReadLineTransformer,
 } from "https://deno.land/x/kubernetes_client@v0.1.3/mod.ts";
 
-export * as CoreV1 from "https://deno.land/x/kubernetes_apis@v0.2.0/builtin/core@v1/mod.ts";
+// TODO using patch to fix proxy functions
+// export * as CoreV1 from "https://deno.land/x/kubernetes_apis@v0.2.0/builtin/core@v1/mod.ts";
+export * as CoreV1 from "https://raw.githubusercontent.com/cloudydeno/deno-kubernetes_apis/main/lib/builtin/core@v1/mod.ts";
+export * as AppsV1 from "https://deno.land/x/kubernetes_apis@v0.2.0/builtin/apps@v1/mod.ts";
+export * as MetaV1 from "https://deno.land/x/kubernetes_apis@v0.2.0/builtin/meta@v1/structs.ts";
 
 //------------
 
