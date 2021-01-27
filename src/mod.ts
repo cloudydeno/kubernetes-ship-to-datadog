@@ -38,10 +38,10 @@ async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
   yield* buildKubeStateMetrics(commonTags);
 
   // By-Node stats summaries scraped directly from kubelet
-  // yield* buildSystemMetrics(commonTags);
+  yield* buildSystemMetrics(commonTags);
 
   // A custom CRD for S.M.A.R.T. reports
-  // yield* buildBlockDeviceMetrics(commonTags);
+  yield* buildBlockDeviceMetrics(commonTags);
 
 }
 

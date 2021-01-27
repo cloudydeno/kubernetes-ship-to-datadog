@@ -71,8 +71,15 @@ export async function* buildSystemMetricsFromNode(baseTags: string[], node: Core
   if (!internalAddr) return;
   if (internalAddr.includes('<')) return; // <nil> from kube-pet-node
 
-  const summary = await fetch(`http://${internalAddr}:10255/stats/summary`)
-    .then(x => x.json() as Promise<types.StatsSummary>);
+  const summary = Deno.args.includes('--proxied')
+    ? await coreApi.proxyNodeRequest(node.metadata.name, {
+        method: 'GET',
+        port: 10255,
+        path: '/stats/summary',
+        expectJson: true,
+      }) as unknown as types.StatsSummary
+    : await fetch(`http://${internalAddr}:10255/stats/summary`)
+      .then(x => x.json() as Promise<types.StatsSummary>);
 
   const thisObs: StatsSummary = {
     node: {

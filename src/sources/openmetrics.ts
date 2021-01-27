@@ -136,14 +136,19 @@ export async function* buildOpenMetrics(baseTags: string[]): AsyncMetricGen {
     }
 
     try {
-      const stream = await coreApi
-        .namespace(pod.metadata!.namespace!)
-        .proxyPodRequest(pod.metadata!.name!, {
-          port: pod.metadata!.annotations!['cloudydeno.github.io/metric-port'],
-          method: 'GET',
-          path: '/metrics',
-          expectStream: true,
-        });
+      const metricPort = pod.metadata!.annotations!['cloudydeno.github.io/metric-port'];
+
+      const stream = Deno.args.includes('--proxied')
+      ? await coreApi
+          .namespace(pod.metadata!.namespace!)
+          .proxyPodRequest(pod.metadata!.name!, {
+            port: metricPort,
+            method: 'GET',
+            path: '/metrics',
+            expectStream: true,
+          })
+      : await fetch(`http://${pod.status?.podIP}:${metricPort}/metrics`)
+        .then(x => x.body!);
 
       for await (const rawMetric of parseMetrics(stream)) {
 
