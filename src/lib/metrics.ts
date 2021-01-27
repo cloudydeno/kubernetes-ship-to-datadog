@@ -1,7 +1,23 @@
-import { MetricSubmission } from '../deps.ts';
+import {
+  MetricSubmission,
+  CheckStatus,
+} from '../deps.ts';
 
-export type AsyncMetricGen = AsyncGenerator<MetricSubmission,any,undefined>;
-export type SyncMetricGen = Generator<MetricSubmission,any,undefined>;
+// Much like 'CheckRun' but blends in with MetricSubmissions better
+export interface CheckSubmission {
+  metric_name: string; // actually check_name
+  metric_type: 'check';
+  host_name: string;
+  tags?: Array<string>;
+  // fields that are only on checks:
+  message?: string;
+  status: CheckStatus;
+  timestamp?: Date;
+}
+
+export type DataSubmission = MetricSubmission | CheckSubmission;
+export type AsyncMetricGen = AsyncGenerator<DataSubmission,any,undefined>;
+export type SyncMetricGen = Generator<DataSubmission,any,undefined>;
 
 export function makeLoopErrorPoint(err: unknown, tags: string[]): MetricSubmission {
   const type = (err instanceof Error) ? err.name : typeof err;

@@ -3,6 +3,11 @@ import {
   fixedInterval,
   ows,
 } from './deps.ts';
+import {
+  AsyncMetricGen,
+  SyncMetricGen,
+  CheckSubmission,
+} from './lib/metrics.ts';
 
 import { buildSystemMetrics } from './sources/kubelet-stats.ts';
 import { buildKubeStateMetrics } from './sources/kube-state.ts';
@@ -11,7 +16,7 @@ import { buildBlockDeviceMetrics } from './sources/pet-blockdevices.ts';
 
 const datadog = DatadogApi.fromEnvironment(Deno.env);
 
-async function* buildDogMetrics(dutyCycle: number): AsyncGenerator<MetricSubmission,any,undefined> {
+async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
 
   const commonTags = [
     'cluster:dust-gke',
@@ -53,7 +58,21 @@ for await (const dutyCycle of fixedInterval(30 * 1000)) {
       .pipeThrough(ows.filter(x => x.metric_type !== 'count' || x.points[0].value !== 0), pipeOpts)
       .pipeThrough(ows.bufferWithCount(500), pipeOpts)
   ) {
-    // console.log(batch.filter(x => x.metric_name.includes('fetch.request_d')))
-    console.log(batch.length, await datadog.v1Metrics.submit(batch));
+
+    const checkPoints = (
+      batch.filter(x => x.metric_type === 'check')
+    ) as CheckSubmission[];
+    for (const checkPoint of checkPoints) {
+      console.log(checkPoint.metric_name, await datadog.v1ServiceChecks.submit({
+        check_name: checkPoint.metric_name,
+        ...checkPoint,
+      }));
+    }
+
+    const metricPoints = (checkPoints.length > 0
+      ? batch.filter(x => x.metric_type !== 'check')
+      : batch
+    ) as MetricSubmission[];
+    console.log(batch.length, await datadog.v1Metrics.submit(metricPoints));
   }
 }
