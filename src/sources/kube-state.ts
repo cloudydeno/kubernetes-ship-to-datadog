@@ -14,10 +14,6 @@ import {
   MonotonicMemory,
 } from '../lib/metrics.ts';
 
-const kubernetes = await autoDetectKubernetesClient();
-const coreApi = new CoreV1.CoreV1Api(kubernetes);
-const appsApi = new AppsV1.AppsV1Api(kubernetes);
-
 // upstream's sources per kind:
 // https://github.com/kubernetes/kube-state-metrics/tree/master/internal/store
 
@@ -102,40 +98,28 @@ class KubeStateWatcher {
   }
 }
 
+const watcher = new KubeStateWatcher(await autoDetectKubernetesClient());
+watcher.startAll();
+
 export async function* grabKubeStateMetrics(baseTags: string[]): AsyncMetricGen {
 
-  const daemonsetList = await appsApi.getDaemonSetListForAllNamespaces({
-    resourceVersion: '0', // old data is ok... ish
-  });
-  for (const contr of daemonsetList.items) {
+  for (const contr of watcher.daemonsetReflector.listCached()) {
     yield* observeDaemonset(contr, baseTags);
   }
 
-  const deploymentList = await appsApi.getDeploymentListForAllNamespaces({
-    resourceVersion: '0', // old data is ok... ish
-  });
-  for (const contr of deploymentList.items) {
+  for (const contr of watcher.deploymentReflector.listCached()) {
     yield* observeDeployment(contr, baseTags);
   }
 
-  const statefulsetList = await appsApi.getStatefulSetListForAllNamespaces({
-    resourceVersion: '0', // old data is ok... ish
-  });
-  for (const contr of statefulsetList.items) {
+  for (const contr of watcher.statefulsetReflector.listCached()) {
     yield* observeStatefulset(contr, baseTags);
   }
 
-  const nodeList = await coreApi.getNodeList({
-    resourceVersion: '0', // old data is ok... ish
-  });
-  for (const node of nodeList.items) {
+  for (const node of watcher.nodeReflector.listCached()) {
     yield* observeNode(node, baseTags);
   }
 
-  const podList = await coreApi.getPodListForAllNamespaces({
-    resourceVersion: '0', // old data is ok... ish
-  });
-  for (const pod of podList.items) {
+  for (const pod of watcher.podReflector.listCached()) {
     yield* observePod(pod, baseTags);
   }
 
