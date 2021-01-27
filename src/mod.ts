@@ -22,15 +22,6 @@ async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
     'cluster:dust-gke',
   ];
 
-  // Our own loop-health metric
-  yield {
-    metric_name: `app.loop.duty_cycle`,
-    points: [{value: dutyCycle*100}],
-    interval: 60,
-    metric_type: 'gauge',
-    tags: [...commonTags, 'app:kubernetes-ship-to-dd'],
-  };
-
   // Scrape all autodiscovered OpenMetrics (or Prometheus) pods
   yield* buildOpenMetrics(commonTags);
 
@@ -42,6 +33,15 @@ async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
 
   // A custom CRD for S.M.A.R.T. reports
   yield* buildBlockDeviceMetrics(commonTags);
+
+  // Our own loop-health metric
+  yield {
+    metric_name: `app.loop.duty_cycle`,
+    points: [{value: dutyCycle*100}],
+    interval: 60,
+    metric_type: 'gauge',
+    tags: [...commonTags, 'app:kubernetes-ship-to-dd'],
+  };
 
 }
 
