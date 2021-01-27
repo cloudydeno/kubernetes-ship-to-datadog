@@ -233,6 +233,14 @@ function* observePod(pod: CoreV1.Pod, baseTags: string[]): SyncMetricGen {
     `kube_pod:${pod.metadata!.name}`
   ];
 
+  for (const x of pod.metadata!.ownerReferences ?? []) {
+    if (!x.controller) continue;
+    tags.push(`kube_${x.kind}:${x.name}`);
+    if (x.kind === 'ReplicaSet') {
+      tags.push(`kube_deployment:${x.name.slice(0, x.name.lastIndexOf('-'))}`);
+    }
+  }
+
   for (const condition of pod.status?.conditions ?? []) {
     let value = 0.5;
     if (condition.status === 'True') {

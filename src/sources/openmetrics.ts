@@ -133,6 +133,9 @@ export async function* buildOpenMetrics(baseTags: string[]): AsyncMetricGen {
     for (const x of pod.metadata!.ownerReferences ?? []) {
       if (!x.controller) continue;
       podTags.push(`kube_${x.kind}:${x.name}`);
+      if (x.kind === 'ReplicaSet') {
+        podTags.push(`kube_deployment:${x.name.slice(0, x.name.lastIndexOf('-'))}`);
+      }
     }
 
     try {
