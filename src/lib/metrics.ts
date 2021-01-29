@@ -48,7 +48,7 @@ export class MonotonicMemory {
     if (typeof lastSeen === 'number') {
       // if a container restarts, report the new value as whole
       // (because we don't want to drop the NEW data)
-      if (raw_value <= lastSeen) {
+      if (raw_value >= lastSeen) {
         raw_value -= lastSeen;
       }
     } else {
