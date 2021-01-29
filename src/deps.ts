@@ -6,10 +6,10 @@ export { fixedInterval } from "https://danopia.net/deno/fixed-interval@v1.ts";
 
 export {
   runMetricsServer,
-} from "https://raw.githubusercontent.com/cloudydeno/deno-openmetrics_exporter/84cc967c7e9a3ed85f401435d3747fd221c9c233/mod.ts";
+} from "https://raw.githubusercontent.com/cloudydeno/deno-openmetrics_exporter/9425a42bd92595e75fb45034df70d8eff61aa10d/mod.ts";
 export {
   replaceGlobalFetch,
-} from "https://raw.githubusercontent.com/cloudydeno/deno-openmetrics_exporter/84cc967c7e9a3ed85f401435d3747fd221c9c233/lib/instrumented/fetch.ts";
+} from "https://raw.githubusercontent.com/cloudydeno/deno-openmetrics_exporter/9425a42bd92595e75fb45034df70d8eff61aa10d/lib/instrumented/fetch.ts";
 
 export type {
   RestClient as KubernetesClient,
