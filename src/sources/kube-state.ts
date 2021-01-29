@@ -61,7 +61,7 @@ function* makeControllerMetrics(opts: {
   }
 }
 
-const containerMemories = new Map<string,MonotonicMemory>();
+const podMemories = new Map<string,MonotonicMemory>();
 
 class KubeStateWatcher {
   constructor(
@@ -249,27 +249,26 @@ function* observePod(pod: CoreV1.Pod, baseTags: string[]): SyncMetricGen {
     }
   }
 
-  const memoryKey = JSON.stringify(tags);
-  let memory = containerMemories.get(memoryKey);
+  let memory = podMemories.get(pod.metadata!.uid!);
   if (!memory) {
     memory = new MonotonicMemory();
-    containerMemories.set(memoryKey, memory);
+    podMemories.set(pod.metadata!.uid!, memory);
   }
 
   for (const container of pod.status?.containerStatuses ?? []) {
-    yield* memory.reportCount(container.restartCount, `${memoryKey}:restarts:${container.name}`, {
+    yield* memory.reportCount(container.restartCount, `restarts:${container.name}`, {
       metric_name: 'kube_state.container.restarts.total',
       tags: [...tags, `container_type:regular`, `kube_container:${container.name}`],
     });
   }
   for (const container of pod.status?.initContainerStatuses ?? []) {
-    yield* memory.reportCount(container.restartCount, `${memoryKey}:restarts:${container.name}`, {
+    yield* memory.reportCount(container.restartCount, `restarts:${container.name}`, {
       metric_name: 'kube_state.container.restarts.total',
       tags: [...tags, `container_type:init`, `kube_container:${container.name}`],
     });
   }
   for (const container of pod.status?.ephemeralContainerStatuses ?? []) {
-    yield* memory.reportCount(container.restartCount, `${memoryKey}:restarts:${container.name}`, {
+    yield* memory.reportCount(container.restartCount, `restarts:${container.name}`, {
       metric_name: 'kube_state.container.restarts.total',
       tags: [...tags, `container_type:ephemeral`, `kube_container:${container.name}`],
     });
