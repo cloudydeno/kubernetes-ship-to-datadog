@@ -66,9 +66,12 @@ const podMemories = new Map<string,MonotonicMemory>();
 class KubeStateWatcher {
   constructor(
     private kubeClient: KubernetesClient,
-  ) {}
-  coreApi = new CoreV1.CoreV1Api(this.kubeClient);
-  appsApi = new AppsV1.AppsV1Api(this.kubeClient);
+  ) {
+    this.coreApi = new CoreV1.CoreV1Api(this.kubeClient);
+    this.appsApi = new AppsV1.AppsV1Api(this.kubeClient);
+  }
+  coreApi: CoreV1.CoreV1Api;
+  appsApi: AppsV1.AppsV1Api;
 
   daemonsetReflector = new Reflector(
     opts => this.appsApi.getDaemonSetListForAllNamespaces(opts),

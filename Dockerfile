@@ -1,5 +1,4 @@
-#FROM hayd/alpine-deno:1.6.1
-FROM danopia/deno-experiments:1.8.0-heapmetrics
+FROM hayd/alpine-deno:1.9.2
 WORKDIR /src/kubernetes-ship-to-datadog
 
 ADD src/deps.ts .
