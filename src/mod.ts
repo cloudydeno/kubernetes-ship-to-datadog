@@ -60,7 +60,7 @@ const pipeOpts: PipeOptions = {
 
 for await (const dutyCycle of fixedInterval(30 * 1000)) {
   console.log('---', new Date().toISOString(), dutyCycle);
-  const metricStream = ows.fromAsyncIterator(buildDogMetrics(dutyCycle));
+  const metricStream = ows.fromIterable(buildDogMetrics(dutyCycle));
   for await (const batch of metricStream
       .pipeThrough(ows.filter(x => x.metric_type !== 'count' || x.points[0].value !== 0), pipeOpts)
       .pipeThrough(ows.bufferWithCount(500), pipeOpts)

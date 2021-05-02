@@ -1,8 +1,8 @@
-export { default as DatadogApi } from "https://deno.land/x/datadog_api@v0.1.2/mod.ts";
-export { CheckStatus } from "https://deno.land/x/datadog_api@v0.1.2/mod.ts";
-export type { MetricSubmission } from "https://deno.land/x/datadog_api@v0.1.2/v1/metrics.ts";
+export { default as DatadogApi } from "https://deno.land/x/datadog_api@v0.1.3/mod.ts";
+export { CheckStatus } from "https://deno.land/x/datadog_api@v0.1.3/mod.ts";
+export type { MetricSubmission } from "https://deno.land/x/datadog_api@v0.1.3/v1/metrics.ts";
 
-export { fixedInterval } from "https://danopia.net/deno/fixed-interval@v1.ts";
+export { fixedInterval } from "https://crux.land/4MC9JG#fixed-interval@v1";
 
 export {
   runMetricsServer,
@@ -13,13 +13,13 @@ export {
 
 export type {
   RestClient as KubernetesClient,
-} from "https://deno.land/x/kubernetes_client@v0.2.0/mod.ts";
+} from "https://deno.land/x/kubernetes_client@v0.2.3/mod.ts";
 export {
   // RestClient as KubernetesClient,
   autoDetectClient as autoDetectKubernetesClient,
   ReadLineTransformer,
   Reflector,
-} from "https://deno.land/x/kubernetes_client@v0.2.0/mod.ts";
+} from "https://deno.land/x/kubernetes_client@v0.2.3/mod.ts";
 
 export * as CoreV1 from "https://deno.land/x/kubernetes_apis@v0.3.0/builtin/core@v1/mod.ts";
 export * as AppsV1 from "https://deno.land/x/kubernetes_apis@v0.3.0/builtin/apps@v1/mod.ts";
@@ -27,15 +27,15 @@ export * as MetaV1 from "https://deno.land/x/kubernetes_apis@v0.3.0/builtin/meta
 
 //------------
 
-import { bufferWithCount } from "https://cloudydeno.github.io/observables-with-streams/src/transforms/buffer-with-count.ts";
-import { filter } from "https://cloudydeno.github.io/observables-with-streams/src/transforms/filter.ts";
+import { bufferWithCount } from "https://deno.land/x/stream_observables@v1.0/transforms/buffer-with-count.ts";
+import { filter } from "https://deno.land/x/stream_observables@v1.0/transforms/filter.ts";
 
 import {
-  readableStreamFromAsyncIterator as fromAsyncIterator,
-} from "https://deno.land/std@0.81.0/io/streams.ts";
+  fromIterable,
+} from "https://deno.land/x/stream_observables@v1.0/sources/from-iterable.ts";
 
 export const ows = {
   bufferWithCount,
   filter,
-  fromAsyncIterator,
+  fromIterable,
 };
