@@ -4,6 +4,7 @@ import {
   MetricSubmission,
   ReadLineTransformer,
 } from '../deps.ts';
+import { KubeWatcher } from "../lib/kube-watcher.ts";
 import {
   AsyncMetricGen,
   makeLoopErrorPoint,
@@ -116,14 +117,11 @@ function reportPointAs(
     ]}];
 }
 
-export async function* buildOpenMetrics(baseTags: string[]): AsyncMetricGen {
+export async function* buildOpenMetrics(baseTags: string[], watcher: KubeWatcher): AsyncMetricGen {
 
-  const podList = await coreApi.getPodListForAllNamespaces({
-    labelSelector: 'cloudydeno.github.io/metrics=true',
-    resourceVersion: '0', // old data is ok
-  });
+  for (const pod of watcher.podReflector.listCached()) {
+    if (pod.metadata.annotations?.['cloudydeno.github.io/metrics'] !== 'true') continue;
 
-  for (const pod of podList.items) {
     const podTags = [
       ...baseTags,
       `kube_namespace:${pod.metadata!.namespace}`,

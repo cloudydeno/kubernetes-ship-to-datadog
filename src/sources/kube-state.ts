@@ -1,12 +1,10 @@
 import {
-  autoDetectKubernetesClient,
-  KubernetesClient,
-  Reflector,
   CoreV1,
   AppsV1,
   MetaV1,
   CheckStatus,
 } from '../deps.ts';
+import { KubeWatcher } from "../lib/kube-watcher.ts";
 import {
   AsyncMetricGen,
   SyncMetricGen,
@@ -17,9 +15,9 @@ import {
 // upstream's sources per kind:
 // https://github.com/kubernetes/kube-state-metrics/tree/master/internal/store
 
-export async function* buildKubeStateMetrics(baseTags: string[]): AsyncMetricGen {
+export async function* buildKubeStateMetrics(baseTags: string[], watcher: KubeWatcher): AsyncMetricGen {
   try {
-    yield* grabKubeStateMetrics(baseTags);
+    yield* grabKubeStateMetrics(baseTags, watcher);
   } catch (err: unknown) {
     yield makeLoopErrorPoint(err, [ ...baseTags,
       `source:openmetrics`,
@@ -63,48 +61,7 @@ function* makeControllerMetrics(opts: {
 
 const podMemories = new Map<string,MonotonicMemory>();
 
-class KubeStateWatcher {
-  constructor(
-    private kubeClient: KubernetesClient,
-  ) {
-    this.coreApi = new CoreV1.CoreV1Api(this.kubeClient);
-    this.appsApi = new AppsV1.AppsV1Api(this.kubeClient);
-  }
-  coreApi: CoreV1.CoreV1Api;
-  appsApi: AppsV1.AppsV1Api;
-
-  daemonsetReflector = new Reflector(
-    opts => this.appsApi.getDaemonSetListForAllNamespaces(opts),
-    opts => this.appsApi.watchDaemonSetListForAllNamespaces(opts));
-  deploymentReflector = new Reflector(
-    opts => this.appsApi.getDeploymentListForAllNamespaces(opts),
-    opts => this.appsApi.watchDeploymentListForAllNamespaces(opts));
-  statefulsetReflector = new Reflector(
-    opts => this.appsApi.getStatefulSetListForAllNamespaces(opts),
-    opts => this.appsApi.watchStatefulSetListForAllNamespaces(opts));
-  nodeReflector = new Reflector(
-    opts => this.coreApi.getNodeList(opts),
-    opts => this.coreApi.watchNodeList(opts));
-  podReflector = new Reflector(
-    opts => this.coreApi.getPodListForAllNamespaces(opts),
-    opts => this.coreApi.watchPodListForAllNamespaces(opts));
-
-  startAll() {
-    this.daemonsetReflector.run();
-    this.deploymentReflector.run();
-    this.statefulsetReflector.run();
-    this.nodeReflector.run();
-    this.podReflector.run();
-    // return Promise.all([
-    //   this.daemonsetReflector
-    // ])
-  }
-}
-
-const watcher = new KubeStateWatcher(await autoDetectKubernetesClient());
-watcher.startAll();
-
-export async function* grabKubeStateMetrics(baseTags: string[]): AsyncMetricGen {
+export async function* grabKubeStateMetrics(baseTags: string[], watcher: KubeWatcher): AsyncMetricGen {
 
   for (const contr of watcher.daemonsetReflector.listCached()) {
     yield* observeDaemonset(contr, baseTags);

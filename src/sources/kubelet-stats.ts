@@ -1,15 +1,13 @@
 import {
-  autoDetectKubernetesClient,
   CoreV1,
 } from '../deps.ts';
 import {
   AsyncMetricGen,
   makeLoopErrorPoint,
 } from '../lib/metrics.ts';
+import { KubeWatcher } from "../lib/kube-watcher.ts";
 
 import * as types from "../lib/kubelet-api.ts";
-
-const coreApi = new CoreV1.CoreV1Api(await autoDetectKubernetesClient());
 
 interface StatsSummary {
   node: NodeSummary;
@@ -43,14 +41,10 @@ interface ContainerSummary {
 };
 const memories = new Map<string, StatsSummary>();
 
-export async function* buildSystemMetrics(baseTags: string[]): AsyncMetricGen {
-  const {items: nodes} = await coreApi.getNodeList();
-
-  for (const node of nodes) {
-    if (!node.metadata?.name) continue;
-
+export async function* buildKubeletMetrics(baseTags: string[], watcher: KubeWatcher): AsyncMetricGen {
+  for (const node of watcher.nodeReflector.listCached()) {
     try {
-      yield* buildSystemMetricsFromNode(baseTags, node);
+      yield* buildKubeletMetricsFromNode(baseTags, node, watcher.coreApi);
 
     } catch (err: unknown) {
       yield makeLoopErrorPoint(err, [...baseTags,
@@ -59,10 +53,9 @@ export async function* buildSystemMetrics(baseTags: string[]): AsyncMetricGen {
       ]);
     }
   }
-
 }
 
-export async function* buildSystemMetricsFromNode(baseTags: string[], node: CoreV1.Node): AsyncMetricGen {
+export async function* buildKubeletMetricsFromNode(baseTags: string[], node: CoreV1.Node, coreApi: CoreV1.CoreV1Api): AsyncMetricGen {
   if (!node.metadata?.name || !node.status?.addresses) return;
 
   const readyCondition = node.status.conditions?.find(x => x.type === 'Ready');
@@ -312,7 +305,7 @@ async function* buildContainerMetrics(prefix: string, now: ContainerSummary, bef
 }
 
 // while (true) {
-//   for await (const metric of buildSystemMetrics()) {
+//   for await (const metric of buildKubeletMetrics()) {
 //     console.log(metric.points[0].value, metric.metric_name, metric.tags?.join(' '));
 //   }
 //   console.log('----');

@@ -3,6 +3,7 @@ import {
   fixedInterval,
   runMetricsServer, replaceGlobalFetch,
   ows,
+  autoDetectKubernetesClient,
 } from './deps.ts';
 import {
   AsyncMetricGen,
@@ -10,7 +11,8 @@ import {
   CheckSubmission,
 } from './lib/metrics.ts';
 
-import { buildSystemMetrics } from './sources/kubelet-stats.ts';
+import { KubeWatcher } from './lib/kube-watcher.ts';
+import { buildKubeletMetrics } from './sources/kubelet-stats.ts';
 import { buildKubeStateMetrics } from './sources/kube-state.ts';
 import { buildOpenMetrics } from './sources/openmetrics.ts';
 import { buildBlockDeviceMetrics } from './sources/pet-blockdevices.ts';
@@ -23,6 +25,9 @@ if (Deno.args.includes('--serve-metrics')) {
 
 const datadog = DatadogApi.fromEnvironment(Deno.env);
 
+const kubeWatcher = new KubeWatcher(await autoDetectKubernetesClient());
+kubeWatcher.startAll();
+
 async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
 
   const commonTags = [
@@ -30,13 +35,13 @@ async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
   ];
 
   // Scrape all autodiscovered OpenMetrics (or Prometheus) pods
-  yield* buildOpenMetrics(commonTags);
+  yield* buildOpenMetrics(commonTags, kubeWatcher);
 
   // Basic scheduling & health from the cluster's control plane
-  yield* buildKubeStateMetrics(commonTags);
+  yield* buildKubeStateMetrics(commonTags, kubeWatcher);
 
   // By-Node stats summaries scraped directly from kubelet
-  yield* buildSystemMetrics(commonTags);
+  yield* buildKubeletMetrics(commonTags, kubeWatcher);
 
   // A custom CRD for S.M.A.R.T. reports
   yield* buildBlockDeviceMetrics(commonTags);
@@ -52,18 +57,12 @@ async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
 
 }
 
-const pipeOpts: PipeOptions = {
-  preventAbort: false,
-  preventCancel: false,
-  preventClose: false,
-};
-
 for await (const dutyCycle of fixedInterval(30 * 1000)) {
   console.log('---', new Date().toISOString(), dutyCycle);
   const metricStream = ows.fromIterable(buildDogMetrics(dutyCycle));
   for await (const batch of metricStream
-      .pipeThrough(ows.filter(x => x.metric_type !== 'count' || x.points[0].value !== 0), pipeOpts)
-      .pipeThrough(ows.bufferWithCount(500), pipeOpts)
+      .pipeThrough(ows.filter(x => x.metric_type !== 'count' || x.points[0].value !== 0))
+      .pipeThrough(ows.bufferWithCount(500))
   ) {
 
     const checkPoints = (
