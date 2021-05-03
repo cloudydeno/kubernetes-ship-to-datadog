@@ -65,6 +65,12 @@ export async function* buildSystemMetrics(baseTags: string[]): AsyncMetricGen {
 export async function* buildSystemMetricsFromNode(baseTags: string[], node: CoreV1.Node): AsyncMetricGen {
   if (!node.metadata?.name || !node.status?.addresses) return;
 
+  const readyCondition = node.status.conditions?.find(x => x.type === 'Ready');
+  if (readyCondition?.status === 'Unknown') {
+    console.log('Skipping unknown-health kubelet on', node.metadata.name);
+    return;
+  }
+
   const internalAddr = node.status.addresses
     .filter(x => x.type === 'InternalIP')
     .map(x => x.address)[0];
