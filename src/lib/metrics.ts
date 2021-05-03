@@ -21,6 +21,8 @@ export type SyncMetricGen = Generator<DataSubmission,any,undefined>;
 
 export function makeLoopErrorPoint(err: unknown, tags: string[]): MetricSubmission {
   const type = (err instanceof Error) ? err.name : typeof err;
+  console.error('Loop Error', type, tags);
+  console.error(err);
   return {
     metric_name: `app.loop.error`,
     points: [{value: 1}],

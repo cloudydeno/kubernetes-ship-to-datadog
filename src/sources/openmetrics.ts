@@ -203,7 +203,7 @@ export async function* buildOpenMetrics(baseTags: string[]): AsyncMetricGen {
       // Deno.exit(1);
       // yield* grabKubeStateMetrics(baseTags);
     } catch (err: unknown) {
-      console.log(`Failed to scrape ${pod.metadata!.namespace}/${pod.metadata!.name}: ${(err as Error).stack}`);
+      console.log(`Failed to scrape ${pod.metadata!.namespace}/${pod.metadata!.name}`);
       yield makeLoopErrorPoint(err, [...baseTags,
         `source:openmetrics`,
         `source_name:${pod.metadata!.namespace}/${pod.metadata!.name}`,

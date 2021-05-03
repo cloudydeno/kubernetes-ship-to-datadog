@@ -31,18 +31,18 @@ export async function* buildBlockDeviceMetrics(baseTags: string[]): AsyncMetricG
   }
 }
 
-async function* reportBlockDev(baseTags: string[], node: BlockDevice): AsyncMetricGen {
-  const report = node.status?.smartReport;
-  if (!node.metadata?.uid || !node.spec.serialNumber || !report) return;
-  const blkType = (node.metadata.labels ?? {})['pet.wg69.net/blk-type'];
+async function* reportBlockDev(baseTags: string[], dev: BlockDevice): AsyncMetricGen {
+  const report = dev.status?.smartReport;
+  if (!dev.metadata?.uid || !dev.spec.serialNumber || !report) return;
+  const blkType = (dev.metadata.labels ?? {})['pet.wg69.net/blk-type'];
 
-  const prevObs = reportMemory.get(node.spec.serialNumber);
+  const prevObs = reportMemory.get(dev.spec.serialNumber);
   if (prevObs?.collectionTime.valueOf() === report.collectionTime.valueOf()) return;
-  reportMemory.set(node.spec.serialNumber, report);
+  reportMemory.set(dev.spec.serialNumber, report);
 
   const tags = [...baseTags,
-    `serial:${node.spec.serialNumber}`,
-    `host:${node.spec.nodeName}`, // can technically change per drive
+    `serial:${dev.spec.serialNumber}`,
+    `host:${dev.spec.nodeName}`, // can technically change per drive
     `drive_media:${blkType ?? 'unknown'}`,
   ];
 
