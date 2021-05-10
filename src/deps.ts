@@ -10,17 +10,17 @@ export { replaceGlobalFetch } from "https://deno.land/x/observability@v0.1.0/sou
 
 export type {
   RestClient as KubernetesClient,
-} from "https://deno.land/x/kubernetes_client@v0.2.3/mod.ts";
+} from "https://deno.land/x/kubernetes_client@v0.2.4/mod.ts";
 export {
   // RestClient as KubernetesClient,
   autoDetectClient as autoDetectKubernetesClient,
   ReadLineTransformer,
   Reflector,
-} from "https://deno.land/x/kubernetes_client@v0.2.3/mod.ts";
+} from "https://deno.land/x/kubernetes_client@v0.2.4/mod.ts";
 
-export * as CoreV1 from "https://deno.land/x/kubernetes_apis@v0.3.0/builtin/core@v1/mod.ts";
-export * as AppsV1 from "https://deno.land/x/kubernetes_apis@v0.3.0/builtin/apps@v1/mod.ts";
-export * as MetaV1 from "https://deno.land/x/kubernetes_apis@v0.3.0/builtin/meta@v1/structs.ts";
+export * as CoreV1 from "https://deno.land/x/kubernetes_apis@v0.3.1/builtin/core@v1/mod.ts";
+export * as AppsV1 from "https://deno.land/x/kubernetes_apis@v0.3.1/builtin/apps@v1/mod.ts";
+export * as MetaV1 from "https://deno.land/x/kubernetes_apis@v0.3.1/builtin/meta@v1/structs.ts";
 
 //------------
 
