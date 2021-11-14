@@ -29,9 +29,9 @@ const kubeWatcher = new KubeWatcher(await autoDetectKubernetesClient());
 kubeWatcher.startAll();
 
 async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
-
+  const clusterName = Deno.env.get('DATADOG_CLUSTER_TAG') || 'none';
   const commonTags = [
-    'cluster:dust-gke',
+    `cluster:${clusterName}`,
   ];
 
   // Scrape all autodiscovered OpenMetrics (or Prometheus) pods
