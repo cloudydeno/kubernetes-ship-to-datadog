@@ -76,7 +76,6 @@ export async function* buildKubeletMetricsFromNode(baseTags: string[], node: Cor
   const summary = Deno.args.includes('--proxied')
     ? await coreApi.proxyNodeRequest(node.metadata.name, {
         method: 'GET',
-        port: 10255,
         path: '/stats/summary',
         expectJson: true,
       }) as unknown as types.StatsSummary
