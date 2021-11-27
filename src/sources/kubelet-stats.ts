@@ -339,5 +339,5 @@ async function fetchFromKubelet(node: CoreV1.Node, kubeContext: KubeConfigContex
     caCerts: serverCert ? [serverCert] : [],
     hostname: node.metadata?.name ?? undefined,
   });
-  return fetchUsing(dialer, url);
+  return fetchUsing(dialer, url, { headers });
 }
