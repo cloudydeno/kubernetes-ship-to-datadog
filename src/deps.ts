@@ -5,8 +5,8 @@ export type { MetricSubmission } from "https://deno.land/x/datadog_api@v0.2.0/v1
 // from https://github.com/cloudydeno/deno-bitesized :
 export { fixedInterval } from "https://crux.land/4MC9JG#fixed-interval@v1";
 
-export { runMetricsServer } from "https://deno.land/x/observability@v0.1.1/sinks/openmetrics/server.ts";
-export { replaceGlobalFetch } from "https://deno.land/x/observability@v0.1.1/sources/fetch.ts";
+export { runMetricsServer } from "https://deno.land/x/observability@v0.1.2/sinks/openmetrics/server.ts";
+export { replaceGlobalFetch } from "https://deno.land/x/observability@v0.1.2/sources/fetch.ts";
 
 export type {
   RestClient as KubernetesClient,
