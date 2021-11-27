@@ -1,5 +1,8 @@
 import {
   CoreV1,
+  KubeConfigContext,
+  fetchUsing,
+  TlsDialer,
 } from '../deps.ts';
 import {
   AsyncMetricGen,
@@ -41,10 +44,10 @@ interface ContainerSummary {
 };
 const memories = new Map<string, StatsSummary>();
 
-export async function* buildKubeletMetrics(baseTags: string[], watcher: KubeWatcher): AsyncMetricGen {
+export async function* buildKubeletMetrics(baseTags: string[], watcher: KubeWatcher, kubeContext: KubeConfigContext): AsyncMetricGen {
   for (const node of watcher.nodeReflector.listCached()) {
     try {
-      yield* buildKubeletMetricsFromNode(baseTags, node, watcher.coreApi);
+      yield* buildKubeletMetricsFromNode(baseTags, node, watcher.coreApi, kubeContext);
 
     } catch (err: unknown) {
       yield makeLoopErrorPoint(err, [...baseTags,
@@ -55,7 +58,7 @@ export async function* buildKubeletMetrics(baseTags: string[], watcher: KubeWatc
   }
 }
 
-export async function* buildKubeletMetricsFromNode(baseTags: string[], node: CoreV1.Node, coreApi: CoreV1.CoreV1Api): AsyncMetricGen {
+export async function* buildKubeletMetricsFromNode(baseTags: string[], node: CoreV1.Node, coreApi: CoreV1.CoreV1Api, kubeContext: KubeConfigContext): AsyncMetricGen {
   if (!node.metadata?.name || !node.status?.addresses) return;
 
   const readyCondition = node.status.conditions?.find(x => x.type === 'Ready');
@@ -77,7 +80,10 @@ export async function* buildKubeletMetricsFromNode(baseTags: string[], node: Cor
         path: '/stats/summary',
         expectJson: true,
       }) as unknown as types.StatsSummary
-    : await fetch(`http://${internalAddr}:10255/stats/summary`)
+    : Deno.args.includes('--plaintext-kubelet')
+    ? await fetch(`http://${internalAddr}:10255/stats/summary`)
+      .then(x => x.json() as Promise<types.StatsSummary>)
+    : await fetchFromKubelet(node, kubeContext, `https://${internalAddr}:10250/stats/summary`)
       .then(x => x.json() as Promise<types.StatsSummary>);
 
   const thisObs: StatsSummary = {
@@ -311,3 +317,28 @@ async function* buildContainerMetrics(prefix: string, now: ContainerSummary, bef
 //   console.log('----');
 //   await new Promise(ok => setTimeout(ok, 10000));
 // }
+
+/**
+ * Somewhat-hacky helper for directly accessing encrypted and authenticated endpoints on a node's kubelet
+ */
+async function fetchFromKubelet(node: CoreV1.Node, kubeContext: KubeConfigContext, url: string) {
+  // Load the TLS authority for the cluster
+  // TODO: This sort of file loading needs to be handled by /x/kubernetes_client, to fix relative paths
+  let serverCert = atob(kubeContext.cluster["certificate-authority-data"] ?? "");
+  if (!serverCert && kubeContext.cluster["certificate-authority"]) {
+    serverCert = await Deno.readTextFile(kubeContext.cluster["certificate-authority"]);
+  }
+
+  // Build an auth header for the user, if any
+  const headers = new Headers();
+  const authHeader = await kubeContext.getAuthHeader();
+  if (authHeader) {
+    headers.set("authorization", authHeader);
+  }
+
+  const dialer = new TlsDialer({
+    caCerts: serverCert ? [serverCert] : [],
+    hostname: node.metadata?.name ?? undefined,
+  });
+  return fetchUsing(dialer, url);
+}

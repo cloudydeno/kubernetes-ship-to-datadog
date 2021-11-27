@@ -4,6 +4,7 @@ import {
   runMetricsServer, replaceGlobalFetch,
   ows,
   autoDetectKubernetesClient,
+  KubeConfig,
 } from './deps.ts';
 import {
   AsyncMetricGen,
@@ -25,6 +26,10 @@ if (Deno.args.includes('--serve-metrics')) {
 
 const datadog = DatadogApi.fromEnvironment(Deno.env);
 
+const kubeConfig = await KubeConfig.getInClusterConfig()
+  .catch(() => KubeConfig.getDefaultConfig());
+const kubeContext = kubeConfig.fetchContext();
+
 const kubeWatcher = new KubeWatcher(await autoDetectKubernetesClient());
 kubeWatcher.startAll();
 
@@ -41,7 +46,7 @@ async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
   yield* buildKubeStateMetrics(commonTags, kubeWatcher);
 
   // By-Node stats summaries scraped directly from kubelet
-  yield* buildKubeletMetrics(commonTags, kubeWatcher);
+  yield* buildKubeletMetrics(commonTags, kubeWatcher, kubeContext);
 
   // A custom CRD for S.M.A.R.T. reports
   yield* buildBlockDeviceMetrics(commonTags);
