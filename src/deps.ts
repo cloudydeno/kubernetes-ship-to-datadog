@@ -10,7 +10,7 @@ export { replaceGlobalFetch } from "https://deno.land/x/observability@v0.1.2/sou
 
 export type {
   RestClient as KubernetesClient,
-} from "https://raw.githubusercontent.com/cloudydeno/deno-kubernetes_client/21fba4c3f43c25822c256a1302610ec310d8d3b3/mod.ts";
+} from "https://deno.land/x/kubernetes_client@v0.3.2/mod.ts";
 export {
   // RestClient as KubernetesClient,
   autoDetectClient as autoDetectKubernetesClient,
@@ -18,7 +18,7 @@ export {
   Reflector,
   KubeConfig,
   KubeConfigContext,
-} from "https://raw.githubusercontent.com/cloudydeno/deno-kubernetes_client/21fba4c3f43c25822c256a1302610ec310d8d3b3/mod.ts";
+} from "https://deno.land/x/kubernetes_client@v0.3.2/mod.ts";
 
 export * as CoreV1 from "https://deno.land/x/kubernetes_apis@v0.3.1/builtin/core@v1/mod.ts";
 export * as AppsV1 from "https://deno.land/x/kubernetes_apis@v0.3.1/builtin/apps@v1/mod.ts";
