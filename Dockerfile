@@ -1,4 +1,4 @@
-FROM denoland/deno:1.16.3
+FROM denoland/deno:alpine-1.16.3
 WORKDIR /src/kubernetes-ship-to-datadog
 
 ADD src/deps.ts .
