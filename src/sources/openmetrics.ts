@@ -121,6 +121,7 @@ export async function* buildOpenMetrics(baseTags: string[], watcher: KubeWatcher
 
   for (const pod of watcher.podReflector.listCached()) {
     if (pod.metadata.labels?.['cloudydeno.github.io/metrics'] !== 'true') continue;
+    if (!pod.status?.podIP) continue;
 
     const podTags = [
       ...baseTags,
