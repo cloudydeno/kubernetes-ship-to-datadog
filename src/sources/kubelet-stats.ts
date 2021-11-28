@@ -143,7 +143,7 @@ async function* buildNodeMetrics(now: NodeSummary, before: NodeSummary | undefin
 type BasicSummary = NodeSummary | PodSummary | ContainerSummary;
 async function* buildBasicMetrics(prefix: string, now: BasicSummary, before: BasicSummary | undefined, tags: string[]): AsyncMetricGen {
 
-  if (before?.cpu) {
+  if (before?.cpu && now.cpu.usageCoreNanoSeconds >= before.cpu.usageCoreNanoSeconds) {
     const timestamp = new Date(now.cpu.time);
     const secondsConsumed = (now.cpu.usageCoreNanoSeconds - before.cpu.usageCoreNanoSeconds) / 1000 / 1000 / 1000;
     yield {
@@ -210,6 +210,7 @@ async function* buildNetworkMetrics(prefix: string, now: NodeSummary | PodSummar
 
   for (const iface of now.network.interfaces ?? []) {
     if (iface.name == defaultIface) continue;
+    if (iface.name.startsWith('cali')) continue; // ignore calico interfaces
     const ifaceBefore = before?.network?.interfaces?.find(x => x.name === iface.name);
     yield* buildNetworkIfaceMetrics(prefix, timestamp, iface, ifaceBefore, [...tags]);
   }
