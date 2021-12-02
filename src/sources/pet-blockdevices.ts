@@ -7,11 +7,11 @@ import {
   MonotonicMemory,
 } from '../lib/metrics.ts';
 import {
-  PetWg69NetV1Api,
+  CloudydenoGithubIoV1Api,
   BlockDevice,
-} from '../vendor-apis/pet.wg69.net@v1/mod.ts';
+} from 'https://raw.githubusercontent.com/cloudydeno/kubernetes-node-crds/f41c4b9237247979c1c07517e554b96464fa1245/lib/cloudydeno.github.io%40v1/mod.ts';
 
-const petApi = new PetWg69NetV1Api(await autoDetectKubernetesClient());
+const petApi = new CloudydenoGithubIoV1Api(await autoDetectKubernetesClient());
 
 type SmartReport = (BlockDevice["status"] & {})["smartReport"] & {};
 const reportMemory = new Map<string, SmartReport>();
