@@ -1,3 +1,4 @@
+import { fromQuantity, Quantity, toQuantity } from "https://deno.land/x/kubernetes_apis@v0.3.1/common.ts";
 import {
   CoreV1,
   AppsV1,
@@ -180,6 +181,9 @@ function* observePod(pod: CoreV1.Pod, baseTags: string[]): SyncMetricGen {
   if (pod.spec?.nodeName) {
     tags.push(`kube_node:${pod.spec.nodeName}`);
   }
+  if (pod.status?.phase) {
+    tags.push(`kube_pod_phase:${pod.status.phase}`);
+  }
 
   for (const x of pod.metadata!.ownerReferences ?? []) {
     if (!x.controller) continue;
@@ -187,6 +191,17 @@ function* observePod(pod: CoreV1.Pod, baseTags: string[]): SyncMetricGen {
     if (x.kind === 'ReplicaSet') {
       tags.push(`kube_deployment:${x.name.slice(0, x.name.lastIndexOf('-'))}`);
     }
+  }
+
+  const isPodDangling =
+    (pod.status?.phase == 'Completed' && pod.spec?.restartPolicy !== 'Always') ||
+    (pod.status?.phase == 'Failed' && pod.spec?.restartPolicy === 'Never');
+  if (isPodDangling) {
+    yield { tags, metric_type, interval,
+      metric_name: 'kube_state.pod.dangling',
+      points: [{ value: 1 }]};
+    // Don't report allocation or health metrics about pods that have finalized
+    return;
   }
 
   for (const condition of pod.status?.conditions ?? []) {
@@ -219,25 +234,69 @@ function* observePod(pod: CoreV1.Pod, baseTags: string[]): SyncMetricGen {
     podMemories.set(pod.metadata!.uid!, memory);
   }
 
-  for (const container of pod.status?.containerStatuses ?? []) {
-    yield* memory.reportCount(container.restartCount, `restarts:${container.name}`, {
-      metric_name: 'kube_state.container.restarts.total',
-      tags: [...tags, `container_type:regular`, `kube_container:${container.name}`],
-    });
+  for (const container of pod.spec?.containers ?? []) {
+    yield* observePodContainer(memory, [ ...tags,
+      `container_type:regular`,
+      `kube_container:${container.name}`,
+    ], container, pod.status?.containerStatuses?.find(x => x.name == container.name));
   }
-  for (const container of pod.status?.initContainerStatuses ?? []) {
-    yield* memory.reportCount(container.restartCount, `restarts:${container.name}`, {
-      metric_name: 'kube_state.container.restarts.total',
-      tags: [...tags, `container_type:init`, `kube_container:${container.name}`],
-    });
+  for (const container of pod.spec?.initContainers ?? []) {
+    yield* observePodContainer(memory, [ ...tags,
+      `container_type:init`,
+      `kube_container:${container.name}`,
+    ], container, pod.status?.containerStatuses?.find(x => x.name == container.name));
   }
-  for (const container of pod.status?.ephemeralContainerStatuses ?? []) {
-    yield* memory.reportCount(container.restartCount, `restarts:${container.name}`, {
+  for (const container of pod.spec?.ephemeralContainers ?? []) {
+    yield* observePodContainer(memory, [ ...tags,
+      `container_type:ephemeral`,
+      `kube_container:${container.name}`,
+    ], container, pod.status?.containerStatuses?.find(x => x.name == container.name));
+  }
+}
+
+function* observePodContainer(memory: MonotonicMemory, tags: string[], spec: CoreV1.Container, status?: CoreV1.ContainerStatus): SyncMetricGen {
+
+  if (status) {
+    yield* memory.reportCount(status.restartCount, `restarts:${spec.name}`, {
       metric_name: 'kube_state.container.restarts.total',
-      tags: [...tags, `container_type:ephemeral`, `kube_container:${container.name}`],
+      tags: [...tags, `container_type:regular`, `kube_container:${spec.name}`],
     });
   }
 
-  // TODO: kube_pod_container_resource_requests
-  // TODO: kube_pod_container_resource_limits
+  // TODO: better understanding of what pods are actively scheduled
+  if (tags.includes('container_type:regular')) {
+    yield { tags, metric_type, interval,
+      metric_name: 'kube_state.container.resource_requests.cpu',
+      points: [{ value: quantityToNumber(spec.resources?.requests?.['cpu'] ?? ZeroQuantity) }]};
+    yield { tags, metric_type, interval,
+      metric_name: 'kube_state.container.resource_requests.memory',
+      points: [{ value: quantityToNumber(spec.resources?.requests?.['memory'] ?? ZeroQuantity) }]};
+    if (spec.resources?.limits?.['cpu']) {
+      yield { tags, metric_type, interval,
+        metric_name: 'kube_state.container.resource_limits.cpu',
+        points: [{ value: quantityToNumber(spec.resources?.limits?.['cpu']) }]};
+    }
+    if (spec.resources?.limits?.['memory']) {
+      yield { tags, metric_type, interval,
+        metric_name: 'kube_state.container.resource_limits.memory',
+        points: [{ value: quantityToNumber(spec.resources?.limits?.['memory']) }]};
+    }
+  }
+}
+
+const ZeroQuantity = new Quantity(0, '');
+// TODO: could probably live in https://github.com/cloudydeno/deno-kubernetes_apis/blob/main/lib/common.ts
+const binarySuffixes  = ['Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei'];
+const decimalSuffixes = ['k',  'M',  'G',  'T',  'P',  'E'];
+function quantityToNumber(quantity: Quantity) {
+  if (!quantity.suffix) return quantity.number;
+  const binaryIdx = binarySuffixes.indexOf(quantity.suffix);
+  if (binaryIdx >= 0) {
+    return quantity.number * (1024**(binaryIdx+1));
+  }
+  const decimalIdx = decimalSuffixes.indexOf(quantity.suffix);
+  if (decimalIdx >= 0) {
+    return quantity.number * (1000**(binaryIdx+1));
+  }
+  throw new Error(`BUG: Quantity with unrecognized suffix. ${quantity}`);
 }
