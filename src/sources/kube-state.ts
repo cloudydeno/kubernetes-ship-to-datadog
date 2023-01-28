@@ -177,6 +177,10 @@ function* observePod(pod: CoreV1.Pod, baseTags: string[]): SyncMetricGen {
     `kube_pod:${pod.metadata!.name}`
   ];
 
+  if (pod.spec?.nodeName) {
+    tags.push(`kube_node:${pod.spec.nodeName}`);
+  }
+
   for (const x of pod.metadata!.ownerReferences ?? []) {
     if (!x.controller) continue;
     tags.push(`kube_${x.kind}:${x.name}`);
