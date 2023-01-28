@@ -140,6 +140,9 @@ export async function* buildOpenMetrics(baseTags: string[], watcher: KubeWatcher
     try {
       const metricPort = pod.metadata!.annotations!['cloudydeno.github.io/metric-port'];
 
+      const abort = new AbortController();
+      const timeout = setTimeout(() => abort.abort(), 5000);
+
       const stream = Deno.args.includes('--proxied')
       ? await coreApi
           .namespace(pod.metadata!.namespace!)
@@ -148,9 +151,12 @@ export async function* buildOpenMetrics(baseTags: string[], watcher: KubeWatcher
             method: 'GET',
             path: '/metrics',
             expectStream: true,
+            abortSignal: abort.signal,
           })
-      : await fetch(`http://${pod.status?.podIP}:${metricPort}/metrics`)
+      : await fetch(`http://${pod.status?.podIP}:${metricPort}/metrics`, { signal: abort.signal })
         .then(x => x.body!);
+
+      clearTimeout(timeout);
 
       for await (const rawMetric of parseMetrics(stream)) {
 
