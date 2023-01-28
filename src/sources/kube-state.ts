@@ -285,11 +285,17 @@ function* observePodContainer(memory: MonotonicMemory, tags: string[], spec: Cor
 }
 
 const ZeroQuantity = new Quantity(0, '');
+// TODO: .5Mi => 512Ki, 1e3 => 1000
 // TODO: could probably live in https://github.com/cloudydeno/deno-kubernetes_apis/blob/main/lib/common.ts
 const binarySuffixes  = ['Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei'];
 const decimalSuffixes = ['k',  'M',  'G',  'T',  'P',  'E'];
 function quantityToNumber(quantity: Quantity) {
-  if (!quantity.suffix) return quantity.number;
+  if (!quantity.suffix) {
+    return quantity.number;
+  }
+  if (quantity.suffix == 'm') {
+    return quantity.number / 1000;
+  }
   const binaryIdx = binarySuffixes.indexOf(quantity.suffix);
   if (binaryIdx >= 0) {
     return quantity.number * (1024**(binaryIdx+1));
