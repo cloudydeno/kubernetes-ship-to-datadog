@@ -298,5 +298,5 @@ function quantityToNumber(quantity: Quantity) {
   if (decimalIdx >= 0) {
     return quantity.number * (1000**(binaryIdx+1));
   }
-  throw new Error(`BUG: Quantity with unrecognized suffix. ${quantity}`);
+  throw new Error(`BUG: Quantity with unrecognized suffix. ${quantity.suffix}`);
 }
