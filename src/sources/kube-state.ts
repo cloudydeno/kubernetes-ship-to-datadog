@@ -208,7 +208,7 @@ function* observePod(pod: CoreV1.Pod, baseTags: string[]): SyncMetricGen {
 
     } else if (condition.type === 'PodScheduled') {
       yield { tags, metric_type, interval,
-        metric_name: 'kube_state.pod.ready',
+        metric_name: 'kube_state.pod.scheduled',
         points: [{value}]};
     }
   }
