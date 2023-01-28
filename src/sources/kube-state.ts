@@ -194,7 +194,7 @@ function* observePod(pod: CoreV1.Pod, baseTags: string[]): SyncMetricGen {
   }
 
   const isPodDangling =
-    (pod.status?.phase == 'Completed' && pod.spec?.restartPolicy !== 'Always') ||
+    (pod.status?.phase == 'Succeeded' && pod.spec?.restartPolicy !== 'Always') ||
     (pod.status?.phase == 'Failed' && pod.spec?.restartPolicy === 'Never');
   if (isPodDangling) {
     yield { tags, metric_type, interval,
