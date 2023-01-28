@@ -10,7 +10,7 @@ export { replaceGlobalFetch } from "https://deno.land/x/observability@v0.1.2/sou
 
 export type {
   RestClient as KubernetesClient,
-} from "https://deno.land/x/kubernetes_client@v0.3.2/mod.ts";
+} from "https://deno.land/x/kubernetes_client@v0.4.0/mod.ts";
 export {
   // RestClient as KubernetesClient,
   autoDetectClient as autoDetectKubernetesClient,
@@ -18,19 +18,19 @@ export {
   Reflector,
   KubeConfig,
   KubeConfigContext,
-} from "https://deno.land/x/kubernetes_client@v0.3.2/mod.ts";
+} from "https://deno.land/x/kubernetes_client@v0.4.0/mod.ts";
 
-export * as CoreV1 from "https://deno.land/x/kubernetes_apis@v0.3.1/builtin/core@v1/mod.ts";
-export * as AppsV1 from "https://deno.land/x/kubernetes_apis@v0.3.1/builtin/apps@v1/mod.ts";
-export * as MetaV1 from "https://deno.land/x/kubernetes_apis@v0.3.1/builtin/meta@v1/structs.ts";
+export * as CoreV1 from "https://deno.land/x/kubernetes_apis@v0.3.2/builtin/core@v1/mod.ts";
+export * as AppsV1 from "https://deno.land/x/kubernetes_apis@v0.3.2/builtin/apps@v1/mod.ts";
+export * as MetaV1 from "https://deno.land/x/kubernetes_apis@v0.3.2/builtin/meta@v1/structs.ts";
 
 export { fetchUsing, TlsDialer } from "https://deno.land/x/socket_fetch@v0.1/mod.ts";
 
 //------------
 
-import { bufferWithCount } from "https://deno.land/x/stream_observables@v1.0/transforms/buffer-with-count.ts";
-import { filter } from "https://deno.land/x/stream_observables@v1.0/transforms/filter.ts";
-import { fromIterable } from "https://deno.land/x/stream_observables@v1.0/sources/from-iterable.ts";
+import { bufferWithCount } from "https://deno.land/x/stream_observables@v1.3/transforms/buffer-with-count.ts";
+import { filter } from "https://deno.land/x/stream_observables@v1.3/transforms/filter.ts";
+import { fromIterable } from "https://deno.land/x/stream_observables@v1.3/sources/from-iterable.ts";
 
 export const ows = {
   bufferWithCount,
