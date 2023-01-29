@@ -139,9 +139,72 @@ function* buildNodeMetrics(now: NodeSummary, before: NodeSummary | undefined, ta
     }
   }
 
-  // fs?:               types.FS;
-  // runtime?:          types.Runtime;
-  // rlimit?:           types.Rlimit;
+  if (now.fs) {
+    yield* buildFsMetrics(`kube.node.`, now.fs, [ ...tags, `kube_fs_type:system` ]);
+  }
+
+  if (now.runtime?.imageFs) {
+    yield* buildFsMetrics(`kube.node.`, now.runtime.imageFs, [ ...tags, `kube_fs_type:images` ]);
+  }
+
+  if (now.rlimit) {
+    yield* buildRlimitMetrics(`kube.node.`, now.rlimit, tags);
+  }
+}
+
+function* buildFsMetrics(prefix: string, fs: types.FS, tags: string[]): SyncMetricGen {
+  const timestamp = new Date(fs.time);
+  const interval = 30;
+  const metric_type = 'gauge';
+
+  yield {
+    interval, metric_type, tags,
+    metric_name: `${prefix}filesystem.bytes_available`,
+    points: [{ value: fs.availableBytes, timestamp }],
+  };
+  yield {
+    interval, metric_type, tags,
+    metric_name: `${prefix}filesystem.bytes_total`,
+    points: [{ value: fs.capacityBytes, timestamp }],
+  };
+  yield {
+    interval, metric_type, tags,
+    metric_name: `${prefix}filesystem.bytes_used`,
+    points: [{ value: fs.usedBytes, timestamp }],
+  };
+
+  if (typeof fs.inodesFree == 'number') yield {
+    interval, metric_type, tags,
+    metric_name: `${prefix}filesystem.inodes_available`,
+    points: [{ value: fs.inodesFree, timestamp }],
+  };
+  if (typeof fs.inodes == 'number') yield {
+    interval, metric_type, tags,
+    metric_name: `${prefix}filesystem.inodes_total`,
+    points: [{ value: fs.inodes, timestamp }],
+  };
+  if (typeof fs.inodesUsed == 'number') yield {
+    interval, metric_type, tags,
+    metric_name: `${prefix}filesystem.inodes_used`,
+    points: [{ value: fs.inodesUsed, timestamp }],
+  };
+}
+
+function* buildRlimitMetrics(prefix: string, data: types.Rlimit, tags: string[]): SyncMetricGen {
+  const timestamp = new Date(data.time);
+  const interval = 30;
+  const metric_type = 'gauge';
+
+  yield {
+    interval, metric_type, tags,
+    metric_name: `${prefix}processes.max`,
+    points: [{ value: data.maxpid, timestamp }],
+  };
+  yield {
+    interval, metric_type, tags,
+    metric_name: `${prefix}processes.current`,
+    points: [{ value: data.curproc, timestamp }],
+  };
 }
 
 type BasicSummary = NodeSummary | PodSummary | ContainerSummary;
@@ -210,6 +273,9 @@ function* buildNetworkMetrics(prefix: string, now: NodeSummary | PodSummary, bef
   const defaultIface = now.network.name;
   if (defaultIface) {
     yield* buildNetworkIfaceMetrics(prefix, timestamp, now.network, before?.network, [...tags, 'primary_iface']);
+  } else if (prefix.includes('pod')) {
+    // We don't emit network metrics for pods without a default network,
+    // because these seem to be hostNetwork pods and they will just double-count host traffic.
   }
 
   for (const iface of now.network.interfaces ?? []) {
@@ -277,16 +343,27 @@ function* buildPodMetrics(now: PodSummary, before: PodSummary | undefined, tags:
 
   yield* buildNetworkMetrics('kube.pod.', now, before, tags);
 
+  // These seem to mostly be mounted configmaps/etc and not really providing anything useful
+  // hostpath mounts aren't incldued
   // volume?:              (FS & {name: string})[];
-  // "ephemeral-storage"?: FS;
+
+  if (now['ephemeral-storage']) {
+    // This is a sum of all usage from containers, including logs
+    yield* buildFsMetrics('kube.pod.', now['ephemeral-storage'], [ ...tags, `kube_fs_type:ephemeral` ]);
+  }
 }
 
 function* buildContainerMetrics(prefix: string, now: ContainerSummary, before: ContainerSummary | undefined, tags: string[]): SyncMetricGen {
 
   yield* buildBasicMetrics(prefix, now, before, tags);
 
-  // rootfs?:             types.FS;
-  // logs?:               types.FS;
+  if (now.rootfs) {
+    yield* buildFsMetrics(prefix, now.rootfs, [ ...tags, `kube_fs_type:rootfs` ]);
+  }
+  if (now.logs) {
+    yield* buildFsMetrics(prefix, now.logs, [ ...tags, `kube_fs_type:logs` ]);
+  }
+
   // userDefinedMetrics?: Map<string, types.UserDefinedMetric>;
 
   for (const [name, containerNow] of now.userDefinedMetrics) {
@@ -313,14 +390,6 @@ function* buildContainerMetrics(prefix: string, now: ContainerSummary, before: C
   }
 
 }
-
-// while (true) {
-//   for await (const metric of buildKubeletMetrics()) {
-//     console.log(metric.points[0].value, metric.metric_name, metric.tags?.join(' '));
-//   }
-//   console.log('----');
-//   await new Promise(ok => setTimeout(ok, 10000));
-// }
 
 /**
  * Somewhat-hacky helper for directly accessing encrypted and authenticated endpoints on a node's kubelet
