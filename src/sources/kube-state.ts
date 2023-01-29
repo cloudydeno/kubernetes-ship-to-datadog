@@ -1,8 +1,8 @@
-import { fromQuantity, Quantity, toQuantity } from "https://deno.land/x/kubernetes_apis@v0.3.1/common.ts";
 import {
   CoreV1,
   AppsV1,
   MetaV1,
+  Quantity,
   CheckStatus,
 } from '../deps.ts';
 import { KubeWatcher } from "../lib/kube-watcher.ts";

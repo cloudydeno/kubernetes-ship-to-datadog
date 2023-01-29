@@ -6,6 +6,7 @@ import {
 } from '../deps.ts';
 import {
   AsyncMetricGen,
+  SyncMetricGen,
   makeLoopErrorPoint,
 } from '../lib/metrics.ts';
 import { KubeWatcher } from "../lib/kube-watcher.ts";
@@ -15,7 +16,7 @@ import * as types from "../lib/kubelet-api.ts";
 interface StatsSummary {
   node: NodeSummary;
   pods: Map<string, PodSummary>;
-};
+}
 interface NodeSummary {
   cpu:               types.CPU;
   memory:            types.Memory;
@@ -24,7 +25,7 @@ interface NodeSummary {
   fs?:               types.FS;
   runtime?:          types.Runtime;
   rlimit?:           types.Rlimit;
-};
+}
 interface PodSummary {
   podRef:               types.PodRef;
   containers:           Map<string, ContainerSummary>;
@@ -33,7 +34,7 @@ interface PodSummary {
   network?:             types.Network;
   volume:               Map<string, types.FS>;
   "ephemeral-storage"?: types.FS;
-};
+}
 interface ContainerSummary {
   name:                string;
   cpu:                 types.CPU;
@@ -41,7 +42,7 @@ interface ContainerSummary {
   rootfs?:             types.FS;
   logs?:               types.FS;
   userDefinedMetrics:  Map<string, types.UserDefinedMetric>;
-};
+}
 const memories = new Map<string, StatsSummary>();
 
 export async function* buildKubeletMetrics(baseTags: string[], watcher: KubeWatcher, kubeContext: KubeConfigContext): AsyncMetricGen {
@@ -120,7 +121,7 @@ export async function* buildKubeletMetricsFromNode(baseTags: string[], node: Cor
   memories.set(node.metadata.name, thisObs);
 }
 
-async function* buildNodeMetrics(now: NodeSummary, before: NodeSummary | undefined, tags: string[]): AsyncMetricGen {
+function* buildNodeMetrics(now: NodeSummary, before: NodeSummary | undefined, tags: string[]): SyncMetricGen {
 
   yield* buildBasicMetrics('kube.node.', now, before, tags);
 
@@ -141,7 +142,7 @@ async function* buildNodeMetrics(now: NodeSummary, before: NodeSummary | undefin
 }
 
 type BasicSummary = NodeSummary | PodSummary | ContainerSummary;
-async function* buildBasicMetrics(prefix: string, now: BasicSummary, before: BasicSummary | undefined, tags: string[]): AsyncMetricGen {
+function* buildBasicMetrics(prefix: string, now: BasicSummary, before: BasicSummary | undefined, tags: string[]): SyncMetricGen {
 
   if (before?.cpu && now.cpu.usageCoreNanoSeconds >= before.cpu.usageCoreNanoSeconds) {
     const timestamp = new Date(now.cpu.time);
@@ -173,33 +174,33 @@ async function* buildBasicMetrics(prefix: string, now: BasicSummary, before: Bas
       metric_type: 'gauge',
       tags,
     };
-    if (now.memory.availableBytes) { yield {
+    if (now.memory.availableBytes) yield {
       metric_name: prefix+`memory.available_bytes`,
       points: [{value: now.memory.availableBytes, timestamp}],
       interval: 30,
       metric_type: 'gauge',
       tags,
-    }};
-    if (now.memory.rssBytes) { yield {
+    };
+    if (now.memory.rssBytes) yield {
       metric_name: prefix+`memory.rss_bytes`,
       points: [{value: now.memory.rssBytes, timestamp}],
       interval: 30,
       metric_type: 'gauge',
       tags,
-    }};
-    if (before?.memory && typeof now.memory.pageFaults === 'number') { yield {
+    };
+    if (before?.memory && typeof now.memory.pageFaults === 'number') yield {
       metric_name: prefix+`memory.page_faults`,
       points: [{value: now.memory.pageFaults - (before.memory.pageFaults ?? 0), timestamp}],
       interval: 30,
       metric_type: 'count',
       tags,
-    }};
+    };
   }
 
   // network?:          types.Network;
 }
 
-async function* buildNetworkMetrics(prefix: string, now: NodeSummary | PodSummary, before: NodeSummary | PodSummary | undefined, tags: string[]): AsyncMetricGen {
+function* buildNetworkMetrics(prefix: string, now: NodeSummary | PodSummary, before: NodeSummary | PodSummary | undefined, tags: string[]): SyncMetricGen {
   if (!now.network) return;
   const timestamp = new Date(now.network.time);
 
@@ -216,7 +217,7 @@ async function* buildNetworkMetrics(prefix: string, now: NodeSummary | PodSummar
   }
 }
 
-async function* buildNetworkIfaceMetrics(prefix: string, timestamp: Date, now: types.Interface, before: types.Interface | undefined, tags: string[]): AsyncMetricGen {
+function* buildNetworkIfaceMetrics(prefix: string, timestamp: Date, now: types.Interface, before: types.Interface | undefined, tags: string[]): SyncMetricGen {
 
   if (before && now) {
 
@@ -262,7 +263,7 @@ async function* buildNetworkIfaceMetrics(prefix: string, timestamp: Date, now: t
 
 }
 
-async function* buildPodMetrics(now: PodSummary, before: PodSummary | undefined, tags: string[]): AsyncMetricGen {
+function* buildPodMetrics(now: PodSummary, before: PodSummary | undefined, tags: string[]): SyncMetricGen {
 
   for (const [name, containerNow] of now.containers) {
     const containerPrev = before?.containers?.get(name);
@@ -277,7 +278,7 @@ async function* buildPodMetrics(now: PodSummary, before: PodSummary | undefined,
   // "ephemeral-storage"?: FS;
 }
 
-async function* buildContainerMetrics(prefix: string, now: ContainerSummary, before: ContainerSummary | undefined, tags: string[]): AsyncMetricGen {
+function* buildContainerMetrics(prefix: string, now: ContainerSummary, before: ContainerSummary | undefined, tags: string[]): SyncMetricGen {
 
   yield* buildBasicMetrics(prefix, now, before, tags);
 

@@ -4,7 +4,6 @@ import {
 import {
   AsyncMetricGen,
   makeLoopErrorPoint,
-  MonotonicMemory,
 } from '../lib/metrics.ts';
 import {
   CloudydenoGithubIoV1Api,

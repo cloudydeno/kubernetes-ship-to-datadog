@@ -20,6 +20,7 @@ export {
   KubeConfigContext,
 } from "https://deno.land/x/kubernetes_client@v0.4.0/mod.ts";
 
+export { Quantity } from "https://deno.land/x/kubernetes_apis@v0.3.2/common.ts";
 export * as CoreV1 from "https://deno.land/x/kubernetes_apis@v0.3.2/builtin/core@v1/mod.ts";
 export * as AppsV1 from "https://deno.land/x/kubernetes_apis@v0.3.2/builtin/apps@v1/mod.ts";
 export * as MetaV1 from "https://deno.land/x/kubernetes_apis@v0.3.2/builtin/meta@v1/structs.ts";

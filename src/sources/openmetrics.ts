@@ -8,7 +8,6 @@ import { KubeWatcher } from "../lib/kube-watcher.ts";
 import {
   AsyncMetricGen,
   makeLoopErrorPoint,
-  MonotonicMemory,
 } from '../lib/metrics.ts';
 
 interface RawMetric {
@@ -17,7 +16,7 @@ interface RawMetric {
   unit?: string;
   type: string;
   datas: Array<MetricPoint>;
-};
+}
 interface MetricPoint {
   submetric: string;
   labelset: string;
@@ -25,7 +24,7 @@ interface MetricPoint {
   facets: Record<string,string>;
   value: number;
   rawValue: string;
-};
+}
 
 const kubernetes = await autoDetectKubernetesClient();
 const coreApi = new CoreV1.CoreV1Api(kubernetes);
