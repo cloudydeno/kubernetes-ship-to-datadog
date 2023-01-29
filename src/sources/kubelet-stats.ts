@@ -276,6 +276,7 @@ function* buildNetworkMetrics(prefix: string, now: NodeSummary | PodSummary, bef
   } else if (prefix.includes('pod')) {
     // We don't emit network metrics for pods without a default network,
     // because these seem to be hostNetwork pods and they will just double-count host traffic.
+    return;
   }
 
   for (const iface of now.network.interfaces ?? []) {
