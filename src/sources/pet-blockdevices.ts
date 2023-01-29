@@ -42,6 +42,7 @@ async function* reportBlockDev(baseTags: string[], dev: BlockDevice): AsyncMetri
   const tags = [...baseTags,
     `serial:${dev.spec.serialNumber}`,
     `host:${dev.spec.nodeName}`, // can technically change per drive
+    `kube_node:${dev.spec.nodeName}`, // can technically change per drive
     `drive_media:${blkType ?? 'unknown'}`,
   ];
 

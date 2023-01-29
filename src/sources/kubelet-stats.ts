@@ -106,7 +106,10 @@ export async function* buildKubeletMetricsFromNode(baseTags: string[], node: Cor
 
   const prevObs = memories.get(node.metadata.name);
 
-  const tags = [...baseTags, `host:${node.metadata.name}`];
+  const tags = [...baseTags,
+    `host:${node.metadata.name}`,
+    `kube_node:${node.metadata.name}`,
+  ];
 
   yield* buildNodeMetrics(thisObs.node, prevObs?.node, tags);
 
