@@ -8,7 +8,7 @@ import {
 import {
   CloudydenoGithubIoV1Api,
   BlockDevice,
-} from 'https://raw.githubusercontent.com/danopia/kubernetes-operators/0b8caedd806802b20b93b20ce426e64a5d4ee35d/cloudydeno.github.io/lib/BlockDevice/mod.ts';
+} from 'https://raw.githubusercontent.com/danopia/kubernetes-operators/0b8caedd806802b20b93b20ce426e64a5d4ee35d/cloudydeno.github.io/lib/cloudydeno.github.io%40v1/mod.ts';
 
 const petApi = new CloudydenoGithubIoV1Api(await autoDetectKubernetesClient());
 
