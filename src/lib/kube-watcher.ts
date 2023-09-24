@@ -41,5 +41,13 @@ export class KubeWatcher {
     this.deploymentReflector.run();
     this.statefulsetReflector.run();
     this.podReflector.run();
+    return () => {
+      if (!this.nodeReflector.isSynced()) return false;
+      if (!this.daemonsetReflector.isSynced()) return false;
+      if (!this.deploymentReflector.isSynced()) return false;
+      if (!this.statefulsetReflector.isSynced()) return false;
+      if (!this.podReflector.isSynced()) return false;
+      return true;
+    };
   }
 }

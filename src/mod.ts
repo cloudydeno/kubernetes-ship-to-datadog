@@ -33,7 +33,12 @@ const kubeContext = kubeConfig.fetchContext();
 
 const kubeClient = await autoDetectKubernetesClient();
 const kubeWatcher = new KubeWatcher(kubeClient);
-kubeWatcher.startAll();
+const isInSync = kubeWatcher.startAll();
+for (let x = 0; x < 5; x++) {
+  if (isInSync()) break;
+  console.log('Waiting longer for Kubernetes sync...');
+  await new Promise(ok => setTimeout(ok, 1000));
+}
 
 async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
   const clusterName = Deno.env.get('DATADOG_CLUSTER_TAG') || 'none';
