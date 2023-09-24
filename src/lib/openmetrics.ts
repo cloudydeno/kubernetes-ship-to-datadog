@@ -4,12 +4,13 @@ interface RawMetric {
   name: string;
   help?: string;
   unit?: string;
-  type: string;
+  type?: string;
   datas: Array<MetricPoint>;
 }
 interface MetricPoint {
   submetric: string;
   labelset: string;
+  /** @deprecated use facets */
   tags: [string, string][];
   facets: Record<string,string>;
   value: number;
@@ -18,14 +19,9 @@ interface MetricPoint {
 
 export async function* parseMetrics(stream: ReadableStream<Uint8Array>): AsyncGenerator<RawMetric> {
   const lines = stream.pipeThrough(new ReadLineTransformer());
-  let currName: string | undefined;
-  let currHelp: string | undefined;
-  let currType: string | undefined;
-  let currUnit: string | undefined;
-  let datas: Array<MetricPoint> | undefined;
+  let currObject: RawMetric | undefined;
   for await (const line of lines) {
     if (!line.startsWith('#')) {
-      // console.log(3, currName, currHelp, currType, line);
       const match = line.match(/^([^ {]+)(?:{([^}]+)}|) ([^ ]+)$/);
       if (!match) throw new Error(`TODO: ${line}`);
       const tags: Record<string,string> = Object.create(null);
@@ -33,8 +29,8 @@ export async function* parseMetrics(stream: ReadableStream<Uint8Array>): AsyncGe
         const [k,v] = kv.split('=');
         tags[k] = JSON.parse(v);
       }
-      datas!.push({
-        submetric: match[1].slice(currName!.length + 1),
+      currObject!.datas.push({
+        submetric: match[1].slice(currObject!.name.length + 1),
         labelset: match[2],
         tags: match[2]?.split(',').map(str => {
           const [k, v] = str.split('=');
@@ -45,32 +41,33 @@ export async function* parseMetrics(stream: ReadableStream<Uint8Array>): AsyncGe
         rawValue: match[3],
       });
     } else if (line.startsWith('# TYPE ')) {
-      if (datas) {
-        yield {name: currName!, help: currHelp, unit: currUnit, type: currType!, datas};
-      }
-      currName = line.split(' ')[2];
-      currHelp = undefined;
-      currUnit = undefined;
-      currType = line.slice(8+currName.length);
-      datas = [];
+      const currName = line.split(' ')[2];
+      if (currObject && currObject.name !== currName) yield currObject;
+      currObject = {name: currName!, datas: []};
+      currObject.type = line.slice(8+currName.length);
     } else if (line.startsWith('# HELP ')) {
-      currName = line.split(' ')[2];
-      currHelp = line.slice(8+currName.length);
+      const currName = line.split(' ')[2];
+      if (currObject && currObject.name !== currName) yield currObject;
+      currObject = {name: currName!, datas: []};
+      currObject.help = line.slice(8+currName.length);
     } else if (line.startsWith('# UNIT ')) {
-      currName = line.split(' ')[2];
-      currUnit = line.slice(8+currName.length);
+      const currName = line.split(' ')[2];
+      if (currObject && currObject.name !== currName) yield currObject;
+      currObject = {name: currName!, datas: []};
+      currObject.unit = line.slice(8+currName.length);
     } else if (line === '# EOF') {
       // break;
     } else throw new Error("TODO: "+line);
   }
-  if (datas) {
-    yield {name: currName!, help: currHelp, unit: currUnit, type: currType!, datas};
-  }
+  if (currObject) yield currObject;
 }
 
 // TODO: how does this differ from MonotonicMemory?
 export class OpenmetricsMemory {
   private readonly memory = new Map<string,number>();
+  constructor(
+    public readonly tagPrefix = 'om',
+  ) {}
 
   reportPointAs(
     point: MetricPoint,
@@ -101,7 +98,7 @@ export class OpenmetricsMemory {
       metric_type,
       tags: [
         ...extraTags,
-        ...point.tags.map(([k,v]) => (tagKeyMap[k]||`om_${k}`)+`:${v}`),
+        ...Object.entries(point.facets).map(([k,v]) => (tagKeyMap[k]||`${this.tagPrefix}_${k}`)+`:${v}`),
       ]}];
   }
 }
