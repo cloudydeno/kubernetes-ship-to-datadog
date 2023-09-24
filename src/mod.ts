@@ -17,6 +17,7 @@ import { buildKubeletMetrics } from './sources/kubelet-stats.ts';
 import { buildKubeStateMetrics } from './sources/kube-state.ts';
 import { buildOpenMetrics } from './sources/openmetrics.ts';
 import { buildBlockDeviceMetrics } from './sources/pet-blockdevices.ts';
+import { buildApiserverMetrics } from "./sources/apiserver.ts";
 
 if (Deno.args.includes('--serve-metrics')) {
   replaceGlobalFetch();
@@ -30,7 +31,8 @@ const kubeConfig = await KubeConfig.getInClusterConfig()
   .catch(() => KubeConfig.getDefaultConfig());
 const kubeContext = kubeConfig.fetchContext();
 
-const kubeWatcher = new KubeWatcher(await autoDetectKubernetesClient());
+const kubeClient = await autoDetectKubernetesClient();
+const kubeWatcher = new KubeWatcher(kubeClient);
 kubeWatcher.startAll();
 
 async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
@@ -47,6 +49,10 @@ async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
 
   // By-Node stats summaries scraped directly from kubelet
   yield* buildKubeletMetrics(commonTags, kubeWatcher, kubeContext);
+
+  // By-Node stats summaries scraped directly from apiserver
+  // (Only works in non-HA clusters)
+  yield* buildApiserverMetrics(commonTags, kubeClient);
 
   // A custom CRD for S.M.A.R.T. reports
   yield* buildBlockDeviceMetrics(commonTags);
