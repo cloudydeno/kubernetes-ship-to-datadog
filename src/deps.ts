@@ -14,7 +14,6 @@ export type {
 export {
   // RestClient as KubernetesClient,
   autoDetectClient as autoDetectKubernetesClient,
-  ReadLineTransformer,
   Reflector,
   KubeConfig,
   KubeConfigContext,
@@ -26,6 +25,7 @@ export * as AppsV1 from "https://deno.land/x/kubernetes_apis@v0.3.2/builtin/apps
 export * as MetaV1 from "https://deno.land/x/kubernetes_apis@v0.3.2/builtin/meta@v1/structs.ts";
 
 export { fetchUsing, TlsDialer } from "https://deno.land/x/socket_fetch@v0.1/mod.ts";
+export { TextLineStream } from "https://deno.land/std@0.202.0/streams/text_line_stream.ts";
 
 //------------
 

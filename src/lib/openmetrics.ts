@@ -1,4 +1,4 @@
-import { MetricSubmission, ReadLineTransformer } from "../deps.ts";
+import { MetricSubmission, TextLineStream } from "../deps.ts";
 
 interface RawMetric {
   name: string;
@@ -18,7 +18,7 @@ interface MetricPoint {
 }
 
 export async function* parseMetrics(stream: ReadableStream<Uint8Array>): AsyncGenerator<RawMetric> {
-  const lines = stream.pipeThrough(new ReadLineTransformer());
+  const lines = stream.pipeThrough(new TextDecoderStream()).pipeThrough(new TextLineStream());
   let currObject: RawMetric | null = null;
   const hadWords = new Set<string>();
   for await (const line of lines) {
