@@ -1,5 +1,5 @@
 import {
-  autoDetectKubernetesClient,
+  KubernetesClient,
 } from '../deps.ts';
 import {
   AsyncMetricGen,
@@ -10,14 +10,14 @@ import {
   BlockDevice,
 } from 'https://raw.githubusercontent.com/danopia/kubernetes-operators/0b8caedd806802b20b93b20ce426e64a5d4ee35d/cloudydeno.github.io/lib/cloudydeno.github.io%40v1/mod.ts';
 
-const petApi = new CloudydenoGithubIoV1Api(await autoDetectKubernetesClient());
 
 type SmartReport = (BlockDevice["status"] & {})["smartReport"] & {};
 const reportMemory = new Map<string, SmartReport>();
 
-export async function* buildBlockDeviceMetrics(baseTags: string[]): AsyncMetricGen {
+export async function* buildBlockDeviceMetrics(baseTags: string[], client: KubernetesClient): AsyncMetricGen {
   try {
 
+    const petApi = new CloudydenoGithubIoV1Api(client);
     const {items: blks} = await petApi.getBlockDeviceList();
     for (const blk of blks) {
       yield* reportBlockDev(baseTags, blk);

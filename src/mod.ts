@@ -42,7 +42,7 @@ async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
   ];
 
   // Scrape all autodiscovered OpenMetrics (or Prometheus) pods
-  yield* buildOpenMetrics(commonTags, kubeWatcher);
+  yield* buildOpenMetrics(commonTags, kubeClient, kubeWatcher);
 
   // Basic scheduling & health from the cluster's control plane
   yield* buildKubeStateMetrics(commonTags, kubeWatcher);
@@ -55,7 +55,7 @@ async function* buildDogMetrics(dutyCycle: number): AsyncMetricGen {
   yield* buildApiserverMetrics(commonTags, kubeClient);
 
   // A custom CRD for S.M.A.R.T. reports
-  yield* buildBlockDeviceMetrics(commonTags);
+  yield* buildBlockDeviceMetrics(commonTags, kubeClient);
 
   // Our own loop-health metric
   yield {

@@ -1,6 +1,6 @@
 import {
-  autoDetectKubernetesClient,
   CoreV1,
+  KubernetesClient,
 } from '../deps.ts';
 import { KubeWatcher } from "../lib/kube-watcher.ts";
 import {
@@ -9,12 +9,10 @@ import {
 } from '../lib/metrics.ts';
 import { OpenmetricsMemory, parseMetrics } from "../lib/openmetrics.ts";
 
-const kubernetes = await autoDetectKubernetesClient();
-const coreApi = new CoreV1.CoreV1Api(kubernetes);
-
 const memory = new OpenmetricsMemory();
 
-export async function* buildOpenMetrics(baseTags: string[], watcher: KubeWatcher): AsyncMetricGen {
+export async function* buildOpenMetrics(baseTags: string[], client: KubernetesClient, watcher: KubeWatcher): AsyncMetricGen {
+  const coreApi = new CoreV1.CoreV1Api(client);
 
   for (const pod of watcher.podReflector.listCached()) {
     if (pod.metadata.labels?.['cloudydeno.github.io/metrics'] !== 'true') continue;
