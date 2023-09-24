@@ -19,7 +19,8 @@ interface MetricPoint {
 
 export async function* parseMetrics(stream: ReadableStream<Uint8Array>): AsyncGenerator<RawMetric> {
   const lines = stream.pipeThrough(new ReadLineTransformer());
-  let currObject: RawMetric | undefined;
+  let currObject: RawMetric | null = null;
+  const hadWords = new Set<string>();
   for await (const line of lines) {
     if (!line.startsWith('#')) {
       const match = line.match(/^([^ {]+)(?:{([^}]+)}|) ([^ ]+)$/);
@@ -40,23 +41,35 @@ export async function* parseMetrics(stream: ReadableStream<Uint8Array>): AsyncGe
         value: parseFloat(match[3]),
         rawValue: match[3],
       });
-    } else if (line.startsWith('# TYPE ')) {
-      const currName = line.split(' ')[2];
-      if (currObject && currObject.name !== currName) yield currObject;
-      currObject = {name: currName!, datas: []};
-      currObject.type = line.slice(8+currName.length);
-    } else if (line.startsWith('# HELP ')) {
-      const currName = line.split(' ')[2];
-      if (currObject && currObject.name !== currName) yield currObject;
-      currObject = {name: currName!, datas: []};
-      currObject.help = line.slice(8+currName.length);
-    } else if (line.startsWith('# UNIT ')) {
-      const currName = line.split(' ')[2];
-      if (currObject && currObject.name !== currName) yield currObject;
-      currObject = {name: currName!, datas: []};
-      currObject.unit = line.slice(8+currName.length);
     } else if (line === '# EOF') {
+      // funnily enough, this can trigger an abort, so we don't actually break
       // break;
+    } else if (line.startsWith('# ')) {
+      const [_, word, currName] = line.split(' ', 3);
+
+      // Reset/prepare the current block as necessary
+      if (currObject?.datas.length || hadWords.has(word)) {
+        if (currObject) yield currObject;
+        currObject = null;
+        hadWords.clear();
+      }
+      currObject ??= {name: currName, datas: []};
+      hadWords.add(word);
+
+      // Set the specific field
+      switch (word) {
+        case 'TYPE':
+          currObject.type = line.slice(4+word.length+currName.length);
+          break;
+        case 'HELP':
+          currObject.help = line.slice(4+word.length+currName.length);
+          break;
+        case 'UNIT':
+          currObject.unit = line.slice(4+word.length+currName.length);
+          break;
+        default:
+          throw new Error("TODO: "+line);
+      }
     } else throw new Error("TODO: "+line);
   }
   if (currObject) yield currObject;
