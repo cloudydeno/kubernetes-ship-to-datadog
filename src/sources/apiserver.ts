@@ -95,7 +95,7 @@ export async function* buildApiserverMetrics(baseTags: string[], client: Kuberne
 
 function unPlural(plural: string) {
   if (plural == 'endpoints') return 'endpoints';
-  if (plural.endsWith('sses')) return plural.replace(/es$/, '');
+  if (plural.endsWith('ses')) return plural.replace(/es$/, '');
   if (plural.endsWith('ies')) return plural.replace(/ies$/, 'y');
   return plural.replace(/s$/, '');
 }
